@@ -54,13 +54,28 @@ widget.vbs           ← ویجت شناور (WPF، بدون نصب چیز اض�
 - **SKILLS** — کلیک → prompt قابل ویرایش → `claude -p` headless در vault (`Ctrl+Enter` = اجرا).
 - **UPCOMING · 24H / VAULT CHANGES · 48H**
 
+## انتخاب مدل (model routing)
+
+هر skill یک سطح (`tier`) دارد و هر سطح به یک مدل وصل است (`config.json → models`):
+
+| سطح | مدل | skillها |
+|---|---|---|
+| `light` | Haiku 4.5 | project-pulse — خواندن و خلاصهٔ ساده |
+| `standard` | Sonnet 5.5 | vault-cleanup، morning-brief، inbox-brief، weekly-review، market-scan — جمع‌بندی و نوشتن |
+| `heavy` | Opus 5.5 | deep-research — تحقیق چندمنبعی و استدلال |
+
+- skillی که `tier` نداشته باشد از `defaultTier` (پیش‌فرض `standard`) استفاده می‌کند؛ `model` مستقیم روی یک skill بر سطح آن اولویت دارد.
+- تست vault-cleanup: روی Opus ‏$1.12 و همهٔ مشکلات واقعی را پیدا کرد؛ روی Haiku ‏$0.18 ولی لینک‌های شکسته را ندید — به همین دلیل روی Sonnet است.
+- در پنجرهٔ اجرای داشبورد می‌توان مدل را فقط برای همان اجرا عوض کرد (LIGHT / STANDARD / HEAVY).
+- مدل هر اجرا در Last Run، ویجت و frontmatter یادداشت اجرا (`model:`) ثبت می‌شود.
+
 ## اضافه کردن skill
 
 1. پوشهٔ `<vault>\.claude\skills\<name>\` با `SKILL.md` (frontmatter: `name`, `description`) بسازید — یا در Claude Code از `/skill-creator` استفاده کنید.
 2. در `config.json → skills` یک ورودی اضافه کنید:
 
 ```json
-{ "name": "<name>", "domain": "Research", "schedule": "09:00", "days": ["sat","sun"],
+{ "name": "<name>", "domain": "Research", "tier": "light", "schedule": "09:00", "days": ["sat","sun"],
   "prompt": "Use the <name> skill.", "allowedTools": ["Read", "Glob", "Grep", "WebSearch"] }
 ```
 

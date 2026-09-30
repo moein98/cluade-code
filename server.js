@@ -77,8 +77,11 @@ function state() {
       schedule: s.schedule,
       days: s.days,
       prompt: s.prompt,
+      tier: s.tier,
+      model: runner.resolveModel(s).model,
       running: runner.isRunning(s.name),
     })),
+    models: cfg.models || {},
     domains: cfg.domains || [],
     upcoming: runner.upcoming(),
     changes: vaultChanges(48),
@@ -191,7 +194,8 @@ const server = http.createServer(async (req, res) => {
       let m;
       if ((m = /^\/api\/run\/([\w-]+)$/.exec(url.pathname))) {
         const prompt = typeof body.prompt === "string" ? body.prompt.slice(0, 20000) : undefined;
-        return send(res, 200, runner.start(m[1], "manual", prompt));
+        const tier = typeof body.tier === "string" && body.tier ? body.tier : undefined;
+        return send(res, 200, runner.start(m[1], "manual", prompt, tier));
       }
       if ((m = /^\/api\/open\/(\w+)$/.exec(url.pathname))) return send(res, 200, openTarget(m[1], body));
       if (url.pathname === "/api/integrations/refresh") {

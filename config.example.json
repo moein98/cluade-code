@@ -20,17 +20,25 @@
     "countCacheReads": false,
     "weeklyReset": null
   },
+  "models": {
+    "light": "claude-haiku-4-5",
+    "standard": "claude-sonnet-5-5",
+    "heavy": "claude-opus-5-5"
+  },
+  "defaultTier": "standard",
   "domains": ["Memory", "Productivity", "Research", "Trading", "Projects"],
   "skills": [
     {
       "name": "vault-cleanup",
       "domain": "Memory",
+      "tier": "standard",
       "schedule": "20:00",
       "allowedTools": ["Read", "Glob", "Grep"]
     },
     {
       "name": "morning-brief",
       "domain": "Productivity",
+      "tier": "standard",
       "schedule": "08:00",
       "prompt": "Use the morning-brief skill. Today is {{date}}; today's daily note is {{dailyNote}}.",
       "allowedTools": [
@@ -44,6 +52,7 @@
     {
       "name": "inbox-brief",
       "domain": "Productivity",
+      "tier": "standard",
       "allowedTools": [
         "Read", "Glob", "Write",
         "mcp__claude_ai_Gmail__search_threads",
@@ -55,6 +64,7 @@
     {
       "name": "weekly-review",
       "domain": "Productivity",
+      "tier": "standard",
       "schedule": "20:30",
       "days": ["fri"],
       "allowedTools": ["Read", "Glob", "Grep", "Write", "Edit"]
@@ -62,6 +72,7 @@
     {
       "name": "deep-research",
       "domain": "Research",
+      "tier": "heavy",
       "prompt": "Use the deep-research skill on this topic:\n\n<topic here>",
       "timeoutMin": 30,
       "allowedTools": ["WebSearch", "WebFetch", "Read", "Write", "Edit", "Glob", "Grep"]
@@ -69,12 +80,14 @@
     {
       "name": "market-scan",
       "domain": "Trading",
+      "tier": "standard",
       "schedule": "07:30",
       "allowedTools": ["WebSearch", "WebFetch", "Read", "Write", "Glob"]
     },
     {
       "name": "project-pulse",
       "domain": "Projects",
+      "tier": "light",
       "allowedTools": ["Read", "Glob", "Grep"]
     }
   ],

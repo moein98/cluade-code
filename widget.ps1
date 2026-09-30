@@ -166,6 +166,14 @@ function Format-Trend($t) {
   $arrow = if ($t -gt 0) { [char]0x25B2 } else { [char]0x25BC }
   return "$arrow $([Math]::Round([Math]::Abs([double]$t) * 100))%"
 }
+# claude-haiku-4-5 -> HAIKU 4.5
+function Format-Model($id) {
+  if ([string]$id -match 'claude-([a-z]+)-(\d+)(?:-(\d+))?') {
+    $v = if ($Matches[3]) { "$($Matches[2]).$($Matches[3])" } else { $Matches[2] }
+    return "$($Matches[1].ToUpper()) $v"
+  }
+  return 'DEFAULT'
+}
 function ConvertTo-LocalTime($v) {
   if ($v -is [datetime]) { return $v.ToLocalTime() }
   return [DateTimeOffset]::Parse([string]$v).LocalDateTime
@@ -326,7 +334,7 @@ function Update-Skills($skills) {
     [void]$tb.Inlines.Add($icon); [void]$tb.Inlines.Add($text)
     $b.Content = $tb
     $when = if ($s.schedule) { "$(if ($s.days) { ($s.days -join ' ').ToUpper() } else { 'DAILY' }) $dot $($s.schedule)" } else { 'ON DEMAND' }
-    $b.ToolTip = "$($s.label)  $dot  $($s.domain.ToUpper())  $dot  $when`n`n$($s.description)"
+    $b.ToolTip = "$($s.label)  $dot  $($s.domain.ToUpper())  $dot  $when`n$(([string]$s.tier).ToUpper()) $dot $(Format-Model $s.model)`n`n$($s.description)"
   }
 }
 
@@ -374,7 +382,7 @@ function Render {
         $ui.LastDot.Fill = B $C.orange
         $ui.LastDot.BeginAnimation([Windows.UIElement]::OpacityProperty, $pulse)
         $ui.LastStats.Foreground = B $C.mute
-        $ui.LastStats.Text = "STARTED $started $dot $($run.trigger.ToUpper())"
+        $ui.LastStats.Text = "STARTED $started $dot $(Format-Model $run.model)"
       }
       'FAILED' {
         $ui.LastDot.BeginAnimation([Windows.UIElement]::OpacityProperty, $null)
@@ -386,7 +394,7 @@ function Render {
         $ui.LastDot.BeginAnimation([Windows.UIElement]::OpacityProperty, $null)
         $ui.LastDot.Fill = B $C.orange
         $ui.LastStats.Foreground = B $C.mute
-        $ui.LastStats.Text = ('{0} {1} ${2:0.0000} {1} {3} IN {1} {4} OUT' -f $started, $dot, [double]$run.cost, $run.input, $run.output)
+        $ui.LastStats.Text = ('{0} {1} ${2:0.0000} {1} {5} {1} {3} IN {1} {4} OUT' -f $started, $dot, [double]$run.cost, $run.input, $run.output, (Format-Model $run.model))
       }
     }
   } else {

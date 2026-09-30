@@ -59,6 +59,12 @@ const whenLabel = (t) => {
   return same ? `TODAY ${hm(t)}` : `${MONTHS[d.getMonth()]} ${pad(d.getDate())} ${hm(t)}`;
 };
 
+// claude-haiku-4-5 -> HAIKU 4.5
+function modelName(id) {
+  const m = /claude-([a-z]+)-(\d+)(?:-(\d+))?/.exec(id || "");
+  return m ? `${m[1].toUpperCase()} ${m[2]}${m[3] ? "." + m[3] : ""}` : "DEFAULT";
+}
+
 function tile(el, o) {
   const pct = o.limit ? Math.min(100, (o.used / o.limit) * 100) : 0;
   el.innerHTML = `
@@ -196,9 +202,9 @@ function renderLast(s) {
     ? `<a class="olink" data-note="${esc(r.note)}">◆ OPEN IN OBSIDIAN · ${esc(r.note)}</a>`
     : "";
   let stats;
-  if (r.status === "RUNNING") stats = `<div class="stats">STARTED ${hm(r.startedAt)} · ${esc(r.trigger.toUpperCase())}</div>`;
+  if (r.status === "RUNNING") stats = `<div class="stats">STARTED ${hm(r.startedAt)} · ${esc(r.trigger.toUpperCase())} · ${modelName(r.model)}</div>`;
   else if (r.status === "FAILED") stats = `<div class="stats err">${esc(r.error || "failed")}</div>`;
-  else stats = `<div class="stats">$${(r.cost ?? 0).toFixed(4)} · ${r.input ?? 0} IN · ${r.output ?? 0} OUT</div>`;
+  else stats = `<div class="stats">$${(r.cost ?? 0).toFixed(4)} · ${modelName(r.model)} · ${r.input ?? 0} IN · ${r.output ?? 0} OUT</div>`;
   el.innerHTML = `<div class="lbl">LAST RUN · ${esc(r.label)}</div>
     <div class="status ${cls}"><span>${r.status}</span><span class="sdot"></span></div>
     ${link}${stats}`;
@@ -213,7 +219,7 @@ function renderRecent(runs) {
   el.innerHTML = runs
     .map((r) => {
       const st = r.status === "RUNNING" ? `<span class="st run">●</span>` : r.status === "FAILED" ? `<span class="st bad">✕</span>` : `<span class="st">✓</span>`;
-      return `<li ${r.note ? `data-note="${esc(r.note)}"` : ""} title="${esc(r.error || r.status)}"><span class="tm">${hm(r.startedAt)}</span><span class="nm">${esc(r.label)}</span>${st}</li>`;
+      return `<li ${r.note ? `data-note="${esc(r.note)}"` : ""} title="${esc(r.error || r.status)} · ${modelName(r.model)}"><span class="tm">${hm(r.startedAt)}</span><span class="nm">${esc(r.label)}</span>${st}</li>`;
     })
     .join("");
 }
@@ -239,7 +245,7 @@ function renderSkills(s) {
         .filter((k) => k.domain === d)
         .map(
           (k) => `<button class="skill${k.running ? " running" : ""}" data-skill="${esc(k.name)}" title="${esc(k.description)}">
-            <span><span class="sn">${esc(k.label)}</span><span class="ss">${scheduleText(k)}</span></span>
+            <span><span class="sn">${esc(k.label)}</span><span class="ss">${scheduleText(k)} · ${esc((k.tier || "").toUpperCase())}</span></span>
             <span class="go">${k.running ? "RUNNING" : "▸ RUN"}</span></button>`
         )
         .join("")}</div>`
@@ -310,8 +316,24 @@ document.addEventListener("click", async (e) => {
   }
 });
 
-// Skill launcher: editable prompt, then headless run
+// Skill launcher: editable prompt and model tier, then headless run
 let current = null;
+let currentTier = null;
+function renderTiers() {
+  const models = (state && state.models) || {};
+  $("#m-tiers").innerHTML = Object.entries(models)
+    .map(
+      ([tier, id]) => `<button class="tier" role="radio" aria-checked="${tier === currentTier}" data-tier="${esc(tier)}">
+        <b>${esc(tier.toUpperCase())}</b> · ${modelName(id)}</button>`
+    )
+    .join("");
+}
+$("#m-tiers").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-tier]");
+  if (!b) return;
+  currentTier = b.dataset.tier;
+  renderTiers();
+});
 const modal = $("#modal");
 function closeModal() {
   modal.hidden = true;
@@ -326,6 +348,8 @@ $("#skills").addEventListener("click", (e) => {
   $("#m-title").textContent = `${k.label} · ${k.domain.toUpperCase()} · ${scheduleText(k)}`;
   $("#m-desc").textContent = k.description;
   $("#m-prompt").value = k.prompt;
+  currentTier = k.tier;
+  renderTiers();
   $("#m-run").disabled = k.running;
   modal.hidden = false;
   const ta = $("#m-prompt");
@@ -344,9 +368,10 @@ $("#m-run").addEventListener("click", async () => {
   const name = current.name;
   const label = current.label;
   try {
-    await post(`/api/run/${name}`, { prompt: $("#m-prompt").value });
+    const tier = currentTier;
+    await post(`/api/run/${name}`, { prompt: $("#m-prompt").value, tier });
     closeModal();
-    toast(`${label} started — running headless`);
+    toast(`${label} started on ${modelName(state.models[tier])} — running headless`);
     load();
   } catch (e) {
     toast(e.message, true);
