@@ -1,0 +1,7 @@
+# Local state: run history (contains prompts), widget position, server logs
+data/
+
+# Personal config (vault path); config.example.json is the template
+config.json
+
+node_modules/

@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Agentic OS</title>
+<link rel="icon" href="/robot.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+<main class="wrap">
+  <header class="top">
+    <div class="brand">
+      <img class="bot" src="/robot.svg" alt="">
+      <h1><span class="a">AGENTIC</span><span class="o">OS</span></h1>
+    </div>
+    <div class="meta" id="meta"></div>
+  </header>
+
+  <nav class="nav">
+    <button class="nb primary" data-open="claude"><i>◆</i>CLAUDE CODE<span class="ext">↗</span></button>
+    <button class="nb" data-open="vault"><i>✱</i>VAULT</button>
+    <button class="nb" data-open="daily"><i>§</i>DAILY NOTE</button>
+    <button class="nb" data-open="runs"><i>¶</i>RUNS FOLDER</button>
+    <button class="nb" data-open="drafts"><i>※</i>DRAFTS</button>
+    <button class="nb" data-open="widget"><i>▣</i>WIDGET</button>
+  </nav>
+
+  <section class="tiles">
+    <div class="card tile" id="t-5h"></div>
+    <div class="card tile" id="t-week"></div>
+    <div class="card tile" id="t-routines"></div>
+  </section>
+
+  <section class="card chart-card">
+    <div class="chart-head">
+      <span class="lbl">AGENTIC OS · CUMULATIVE ACTIVITY · 30D</span>
+      <span class="lbl" id="total"></span>
+    </div>
+    <div class="chart" id="chart"></div>
+  </section>
+
+  <section class="card integ">
+    <span class="accent-lbl">INTEGRATIONS</span>
+    <span class="vsep"></span>
+    <div class="integ-list" id="integ"></div>
+  </section>
+
+  <hr class="rule">
+
+  <section class="bottom">
+    <div class="card last" id="last"></div>
+    <div class="card recent">
+      <div class="accent-lbl">RECENT RUNS</div>
+      <ul id="recent"></ul>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="block-head"><span class="accent-lbl">SKILLS</span><span class="lbl" id="skills-note"></span></div>
+    <div class="domains" id="skills"></div>
+  </section>
+
+  <section class="duo">
+    <div class="card list-card">
+      <div class="accent-lbl">UPCOMING · 24H</div>
+      <ul id="upcoming"></ul>
+    </div>
+    <div class="card list-card">
+      <div class="accent-lbl">VAULT CHANGES · 48H</div>
+      <ul id="changes"></ul>
+    </div>
+  </section>
+</main>
+
+<div class="modal" id="modal" hidden>
+  <div class="card modal-box" role="dialog" aria-modal="true" aria-labelledby="m-title">
+    <div class="lbl" id="m-title"></div>
+    <p class="m-desc" id="m-desc"></p>
+    <textarea id="m-prompt" spellcheck="false" rows="7"></textarea>
+    <div class="m-actions">
+      <button class="nb" id="m-cancel">CANCEL</button>
+      <button class="nb primary" id="m-run"><i>▸</i>RUN HEADLESS</button>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast" hidden></div>
+<script src="/app.js"></script>
+</body>
+</html>

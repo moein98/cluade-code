@@ -1,0 +1,9 @@
+{
+  "name": "agentic-os",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Local command center for Claude Code + Obsidian: usage windows, skill launcher, scheduled routines, run history.",
+  "scripts": {
+    "start": "node server.js --open"
+  }
+}

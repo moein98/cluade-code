@@ -1,0 +1,82 @@
+{
+  "port": 4747,
+  "plan": "MAX",
+  "permissionMode": "acceptEdits",
+  "claudePath": "claude",
+  "terminal": "auto",
+  "dailyRunLimit": 15,
+  "catchUpHours": 3,
+  "vault": {
+    "path": "C:\\Users\\you\\Obsidian\\My Vault",
+    "name": "My Vault",
+    "label": "MY VAULT",
+    "dailyFolder": "",
+    "runsFolder": "dashboard-runs",
+    "draftsFolder": "output/drafts"
+  },
+  "limits": {
+    "fiveHourTokens": 5000000,
+    "weeklyTokens": 60000000,
+    "countCacheReads": false,
+    "weeklyReset": null
+  },
+  "domains": ["Memory", "Productivity", "Research", "Trading", "Projects"],
+  "skills": [
+    {
+      "name": "vault-cleanup",
+      "domain": "Memory",
+      "schedule": "20:00",
+      "allowedTools": ["Read", "Glob", "Grep"]
+    },
+    {
+      "name": "morning-brief",
+      "domain": "Productivity",
+      "schedule": "08:00",
+      "prompt": "Use the morning-brief skill. Today is {{date}}; today's daily note is {{dailyNote}}.",
+      "allowedTools": [
+        "Read", "Glob", "Grep", "Write", "Edit",
+        "mcp__claude_ai_Google_Calendar__list_calendars",
+        "mcp__claude_ai_Google_Calendar__list_events",
+        "mcp__claude_ai_Gmail__search_threads",
+        "mcp__claude_ai_Gmail__get_thread"
+      ]
+    },
+    {
+      "name": "inbox-brief",
+      "domain": "Productivity",
+      "allowedTools": [
+        "Read", "Glob", "Write",
+        "mcp__claude_ai_Gmail__search_threads",
+        "mcp__claude_ai_Gmail__get_thread",
+        "mcp__claude_ai_Gmail__get_message",
+        "mcp__claude_ai_Gmail__create_draft"
+      ]
+    },
+    {
+      "name": "weekly-review",
+      "domain": "Productivity",
+      "schedule": "20:30",
+      "days": ["fri"],
+      "allowedTools": ["Read", "Glob", "Grep", "Write", "Edit"]
+    },
+    {
+      "name": "deep-research",
+      "domain": "Research",
+      "prompt": "Use the deep-research skill on this topic:\n\n<topic here>",
+      "timeoutMin": 30,
+      "allowedTools": ["WebSearch", "WebFetch", "Read", "Write", "Edit", "Glob", "Grep"]
+    },
+    {
+      "name": "market-scan",
+      "domain": "Trading",
+      "schedule": "07:30",
+      "allowedTools": ["WebSearch", "WebFetch", "Read", "Write", "Glob"]
+    },
+    {
+      "name": "project-pulse",
+      "domain": "Projects",
+      "allowedTools": ["Read", "Glob", "Grep"]
+    }
+  ],
+  "integrations": []
+}
