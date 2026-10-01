@@ -123,9 +123,13 @@
   "cloudRoutines": [],
   "cloudSync": {
     "enabled": false,
+    "repo": "https://github.com/<you>/agentic-reports",
     "intervalMin": 15,
     "branches": ["main"],
-    "copy": [{ "from": "reports/market", "to": "raw/market", "rename": "{name}-market-scan.md", "skill": "market-scan" }]
+    "copy": [
+      { "from": "reports/market", "to": "raw/market", "rename": "{name}-market-scan.md" },
+      { "from": "reports/brief", "to": "output/briefs", "rename": "{name}-morning-brief.md" }
+    ]
   },
   "integrations": []
 }

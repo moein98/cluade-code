@@ -91,10 +91,17 @@ widget.vbs           ← ویجت شناور (WPF، بدون نصب چیز اض�
 
 Claude Code Routines در سرورهای Anthropic اجرا می‌شوند، حتی وقتی سیستم خاموش است. خروجی‌شان را در همین ریپو commit می‌کنند.
 
-- **Market Scan:** هر روز ۰۷:۰۰ تهران (`30 3 * * *` UTC)، با Sonnet 5.5. گزارش در `reports/market/YYYY-MM-DD.md` ذخیره می‌شود. مدیریت: https://claude.ai/code/routines
-- **همگام‌سازی:** داشبورد هر ۱۵ دقیقه `git fetch` می‌کند و گزارش‌های جدید را در `<vault>/raw/market/YYYY-MM-DD-market-scan.md` کپی می‌کند. این کار working tree را تغییر نمی‌دهد و تنظیمش در `config.json → cloudSync` است. morning-brief ساعت ۰۸:۰۰ همین فایل را می‌خواند.
-- اجرای ابری در Upcoming با برچسب `CLOUD` دیده می‌شود، و وضعیت همگام‌سازی در Integrations با نام `CLOUD SYNC`.
-- ریپو Public است، پس گزارش‌های ابری هم عمومی‌اند.
+این دو روتین بدون روشن بودن PC کار می‌کنند. خروجی‌شان در یک ریپوی **خصوصی** جدا (`agentic-reports`) ثبت می‌شود و یک GitHub Action هر گزارش جدید را به تلگرام می‌فرستد. این Action هیچ AI ندارد و توکن ربات فقط در GitHub secrets است، پس Claude هیچ‌وقت آن را نمی‌بیند. به همین دلیل یک ایمیل مخرب هم نمی‌تواند Claude را وادار کند داده‌ها را به چت دیگری بفرستد.
+
+| روتین | زمان (تهران) | ورودی | خروجی |
+|---|---|---|---|
+| Market Scan | ۰۷:۰۷ | وب | `reports/market/DATE.md` |
+| Morning Brief | ۰۸:۰۷ | Gmail و Calendar (فقط خواندنی) + گزارش بازار | `reports/brief/DATE.md` |
+
+- مدیریت روتین‌ها: https://claude.ai/code/routines
+- **همگام‌سازی:** وقتی PC روشن است، داشبورد هر ۱۵ دقیقه `cloudSync.repo` را fetch می‌کند (یک clone جداگانه در `data/cloud-reports`) و گزارش‌ها را در vault کپی می‌کند: `raw/market/` و `output/briefs/`. این کپی‌ها در صندوق خروجی‌ها هم نمایش داده می‌شوند. git هیچ‌وقت پنجرهٔ ورود باز نمی‌کند.
+- ریپوی خصوصی دو secret دارد: `TELEGRAM_BOT_TOKEN` و `TELEGRAM_CHAT_ID`.
+- مرور هفتگی هنوز محلی است، چون به یادداشت‌های vault نیاز دارد.
 
 ## انتخاب مدل (model routing)
 
