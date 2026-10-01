@@ -8,6 +8,9 @@ const usage = require("./lib/usage");
 const { createRunner } = require("./lib/runner");
 const { createIntegrations } = require("./lib/integrations");
 const { createCloudSync } = require("./lib/cloudsync");
+const { createTelegram } = require("./lib/telegram");
+const { createInbox } = require("./lib/inbox");
+const { createWatchers } = require("./lib/watcher");
 const limits = require("./lib/limits");
 
 const ROOT = __dirname;
@@ -20,7 +23,11 @@ const vault = cfg.vault.path;
 let runner;
 let integrations;
 let cloudSync;
+let telegram;
+let inbox;
+let watchers;
 let hooks = {};
+const DAY = 24 * 3600e3;
 
 const STATIC = {
   "/": ["index.html", "text/html; charset=utf-8"],
@@ -97,11 +104,73 @@ function cloudUpcoming() {
 
 function integrationList() {
   const list = integrations.list();
+  if (list === null) return list;
+  const out = [...list];
   const cloud = cloudSync.status();
-  if (list === null || !cloud.enabled) return list;
-  const t = new Date(cloud.lastSync);
-  const status = cloud.error || (cloud.lastSync ? `synced ${pad(t.getHours())}:${pad(t.getMinutes())}` : "pending");
-  return [...list, { name: "cloud sync", ok: !cloud.error, status }];
+  if (cloud.enabled) {
+    const t = new Date(cloud.lastSync);
+    const status = cloud.error || (cloud.lastSync ? `synced ${pad(t.getHours())}:${pad(t.getMinutes())}` : "pending");
+    out.push({ name: "cloud sync", ok: !cloud.error, status });
+  }
+  const tg = telegram.status();
+  if (tg.enabled) {
+    const status = !tg.configured
+      ? "no bot token in config.json"
+      : tg.error || (tg.queued ? `${tg.queued} queued` : tg.hasChat ? "ready" : "send /start to the bot");
+    out.push({ name: "telegram", ok: tg.configured && !tg.error && !tg.queued, status });
+  }
+  return out;
+}
+
+// Display name of a skill in the current UI language (used for Telegram messages).
+function labelFor(name, fallback) {
+  const s = runner.skills().find((k) => k.name === name);
+  const lang = uiSettings().language;
+  return (s && ((s.labels && s.labels[lang]) || s.label)) || fallback || name;
+}
+
+// Quota guard: block automatic runs while live plan usage is above the configured percentage.
+function quotaGuard() {
+  const g = cfg.quotaGuard || {};
+  if (!g.enabled) return { blocked: false };
+  const live = limits.live();
+  for (const [win, max, name] of [
+    [live.fiveHour, g.fiveHourMax, "5-hour"],
+    [live.weekly, g.weeklyMax, "weekly"],
+  ]) {
+    if (win && max != null && win.pct >= max) {
+      return {
+        blocked: true,
+        window: name,
+        pct: win.pct,
+        max,
+        until: win.resetsAt,
+        reason: `${name} usage is at ${Math.round(win.pct)}% (guard ${max}%)`,
+      };
+    }
+  }
+  return { blocked: false };
+}
+
+// Cost and volume per skill over the last 7 and 30 days, from the local run history.
+function skillUsage(runs) {
+  const now = Date.now();
+  const by = new Map();
+  for (const r of runs) {
+    const t = Date.parse(r.startedAt);
+    if (t < now - 30 * DAY || r.status === "RUNNING") continue;
+    const u = by.get(r.skill) || { skill: r.skill, label: r.label, runs7: 0, cost7: 0, runs30: 0, cost30: 0, out30: 0, failed30: 0 };
+    u.runs30++;
+    u.cost30 += r.cost || 0;
+    u.out30 += r.output || 0;
+    if (r.status === "FAILED") u.failed30++;
+    if (t >= now - 7 * DAY) {
+      u.runs7++;
+      u.cost7 += r.cost || 0;
+    }
+    by.set(r.skill, u);
+  }
+  return [...by.values()].sort((a, b) => b.cost30 - a.cost30);
 }
 
 function state() {
@@ -138,6 +207,10 @@ function state() {
       running: runner.isRunning(s.name),
     })),
     models: cfg.models || {},
+    quota: { enabled: !!(cfg.quotaGuard || {}).enabled, ...(cfg.quotaGuard || {}), ...quotaGuard() },
+    inbox: inbox.state(),
+    skillUsage: skillUsage(runs),
+    watchers: watchers.status(),
     domains: cfg.domains || [],
     upcoming: [...runner.upcoming(), ...cloudUpcoming()].sort((a, b) => a.at - b.at),
     changes: vaultChanges(48),
@@ -197,6 +270,7 @@ function openTarget(what, body) {
       const rel = String(body.file || "");
       if (!fs.existsSync(insideVault(rel))) throw new Error("note not found");
       detached("explorer.exe", [obsidianUri(rel)]);
+      inbox.markRead(rel);
       break;
     }
     default:
@@ -253,16 +327,27 @@ const server = http.createServer(async (req, res) => {
       if ((m = /^\/api\/run\/([\w-]+)$/.exec(url.pathname))) {
         const prompt = typeof body.prompt === "string" ? body.prompt.slice(0, 20000) : undefined;
         const tier = typeof body.tier === "string" && body.tier ? body.tier : undefined;
-        return send(res, 200, runner.start(m[1], "manual", prompt, tier));
+        // force: the person saw the quota warning and chose to run anyway.
+        return send(res, 200, runner.start(m[1], "manual", prompt, tier, { force: body.force === true }));
       }
       if ((m = /^\/api\/open\/(\w+)$/.exec(url.pathname))) return send(res, 200, openTarget(m[1], body));
       if (url.pathname === "/api/settings") return send(res, 200, saveUiSettings(body));
+      if (url.pathname === "/api/inbox/read") {
+        if (body.all === true) inbox.markAll();
+        else inbox.markRead(String(body.file || ""));
+        return send(res, 200, { ok: true });
+      }
+      if (url.pathname === "/api/telegram/test") {
+        if (!telegram.status().configured) throw new Error("Telegram is not configured (config.json → telegram)");
+        telegram.send("Agentic OS ✓ — Telegram test");
+        return send(res, 200, { ok: true });
+      }
       if (url.pathname === "/api/integrations/refresh") {
         integrations.refresh();
         return send(res, 200, { ok: true });
       }
     } catch (e) {
-      return send(res, 400, { error: e.message });
+      return send(res, e.code === "QUOTA" ? 409 : 400, { error: e.message, code: e.code });
     }
   }
 
@@ -283,9 +368,17 @@ function start(options = {}) {
     server.listen(cfg.port, "127.0.0.1", () => {
       usage.setCalibrationFile(path.join(DATA, "limits.json"));
       limits.refresh();
-      runner = createRunner(cfg, DATA);
+      telegram = createTelegram(cfg, DATA);
+      runner = createRunner(cfg, DATA, {
+        guard: quotaGuard,
+        onFinish: (run, skill, result) => telegram.onRun(run, labelFor(skill.name, skill.label), result),
+      });
+      inbox = createInbox(cfg, DATA, () => runner.list());
+      watchers = createWatchers(cfg, DATA, runner);
       integrations = createIntegrations(cfg);
-      cloudSync = createCloudSync(cfg, ROOT);
+      cloudSync = createCloudSync(cfg, ROOT, {
+        onCopied: (rule, rel, text) => rule.skill && telegram.onCloudReport(rule.skill, labelFor(rule.skill), text),
+      });
       console.log(`Agentic OS running at ${url}`);
       resolve({ url, alreadyRunning: false });
     });

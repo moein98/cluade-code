@@ -12,8 +12,21 @@ async function post(url, body) {
     body: JSON.stringify(body || {}),
   });
   const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(j.error || r.statusText);
+  if (!r.ok) throw Object.assign(new Error(j.error || r.statusText), { code: j.code });
   return j;
+}
+
+// Starts a skill; when the quota guard blocks it, asks before running anyway.
+async function runSkill(name, body = {}) {
+  try {
+    return await post(`/api/run/${name}`, body);
+  } catch (e) {
+    const q = state && state.quota;
+    if (e.code !== "QUOTA" || !q) throw e;
+    const msg = t("quotaConfirm", { window: I18N.windowName(q.window), pct: Math.round(q.pct), max: q.max });
+    if (!confirm(msg)) return null;
+    return post(`/api/run/${name}`, { ...body, force: true });
+  }
 }
 
 function toast(msg, bad) {
@@ -50,7 +63,9 @@ function tile(el, o) {
   const pct = o.pct != null ? Math.min(100, o.pct) : o.limit ? Math.min(100, (o.used / o.limit) * 100) : 0;
   el.innerHTML = `
     <div class="row"><span class="lbl">${o.label}</span><span class="rt">${o.right}</span></div>
-    <div class="meter" role="meter" aria-valuenow="${Math.round(pct)}" aria-valuemin="0" aria-valuemax="100"><div class="fill" style="width:${pct}%"></div></div>
+    <div class="meter" role="meter" aria-valuenow="${Math.round(pct)}" aria-valuemin="0" aria-valuemax="100"><div class="fill" style="width:${pct}%"></div>${
+      o.guard != null ? `<span class="mark" style="inset-inline-start:${o.guard}%" title="${o.guard}%"></span>` : ""
+    }</div>
     <div class="row bottom"><span class="val"><bdi>${o.value}</bdi></span><span class="mid">${o.mid}</span>${
       o.badge ? `<span class="badge">${o.badge}</span>` : "<span></span>"
     }</div>`;
@@ -58,12 +73,14 @@ function tile(el, o) {
 
 function renderTiles(s) {
   const limText = (x) => `${x.live ? "~" : ""}${fmtTok(x.limit)}`;
-  for (const [id, x, label] of [
-    ["#t-5h", s.fiveHour, t("fiveHour")],
-    ["#t-week", s.weekly, t("weekly")],
+  const q = s.quota || {};
+  for (const [id, x, label, guard] of [
+    ["#t-5h", s.fiveHour, t("fiveHour"), q.enabled ? q.fiveHourMax : null],
+    ["#t-week", s.weekly, t("weekly"), q.enabled ? q.weeklyMax : null],
   ]) {
     tile($(id), {
       label,
+      guard,
       right: `${t("resets")} · ${I18N.dur(x.resetsIn)}`,
       used: x.used,
       limit: x.limit,
@@ -161,9 +178,23 @@ function renderIntegrations(list) {
     return;
   }
   el.innerHTML = list
-    .map((i) => `<span class="integ-item${i.ok ? "" : " bad"}" title="${esc(i.status)}"><bdi>${esc(i.name)}</bdi></span>`)
+    .map((i) => {
+      // Clicking TELEGRAM sends a test message.
+      const test = i.name === "telegram" ? ` data-action="tg-test" role="button"` : "";
+      return `<span class="integ-item${i.ok ? "" : " bad"}"${test} title="${esc(i.status)}"><bdi>${esc(i.name)}</bdi></span>`;
+    })
     .join("");
 }
+
+$("#integ").addEventListener("click", async (e) => {
+  if (!e.target.closest('[data-action="tg-test"]')) return;
+  try {
+    await post("/api/telegram/test");
+    toast("Telegram ✓");
+  } catch (err) {
+    toast(err.message, true);
+  }
+});
 
 function renderLast(s) {
   const running = s.recentRuns.find((r) => r.status === "RUNNING");
@@ -241,7 +272,7 @@ function renderUpcoming(list) {
   $("#upcoming").innerHTML = list.length
     ? list
         .map((u) => {
-          const label = labelOf(u.skill, u.label) + (u.cloud ? ` · ${t("cloud")}` : "");
+          const label = labelOf(u.skill, u.label) + (u.cloud ? ` · ${t("cloud")}` : "") + (u.deferred ? ` · ${t("deferred")}` : "");
           return `<li><span class="tm">${I18N.when(u.at)}</span><span class="nm">${label}</span><span class="st">${t("inTime", { d: I18N.dur(u.at - Date.now()) })}</span></li>`;
         })
         .join("")
@@ -254,6 +285,40 @@ function renderChanges(list) {
         .map((c) => `<li data-note="${esc(c.file)}"><span class="tm">${I18N.when(c.at)}</span><span class="nm file"><bdi>${esc(c.file)}</bdi></span><span></span></li>`)
         .join("")
     : `<li class="empty">${t("noChanges")}</li>`;
+}
+
+function renderInbox(box) {
+  $("#inbox-count").textContent = box.count ? t("inboxNew", { n: box.count }) : "";
+  $("#inbox-all").hidden = !box.count;
+  $("#inbox").innerHTML = box.items.length
+    ? box.items
+        .map((i) => {
+          const title = i.kind === "run" ? labelOf(i.skill, i.title) : `<bdi>${esc(i.title)}</bdi>`;
+          return `<li data-note="${esc(i.file)}" title="${esc(i.file)}"><span class="tm">${I18N.when(i.at)}</span><span class="nm${i.kind === "run" ? "" : " file"}">${title}</span><span class="st kind">${esc(I18N.kind(i.kind))}</span></li>`;
+        })
+        .join("")
+    : `<li class="empty">${t("inboxEmpty")}</li>`;
+}
+
+function renderUsage(rows) {
+  const el = $("#usage");
+  if (!rows.length) {
+    el.innerHTML = `<tr><td class="empty">${t("noUsage")}</td></tr>`;
+    return;
+  }
+  const max = Math.max(...rows.map((r) => r.cost30), 0.01);
+  el.innerHTML =
+    `<tr><th>${t("colSkill")}</th><th>${t("colRuns7")}</th><th></th><th>${t("colCost7")}</th><th>${t("colCost30")}</th></tr>` +
+    rows
+      .map(
+        (r) => `<tr title="${r.runs30} runs · ${r.failed30} failed · ${fmtTok(r.out30)} out">
+          <td class="nm">${labelOf(r.skill, r.label)}</td>
+          <td class="num">${r.runs7}</td>
+          <td class="bar"><span style="width:${(r.cost30 / max) * 100}%"></span></td>
+          <td class="num">$${r.cost7.toFixed(2)}</td>
+          <td class="num">$${r.cost30.toFixed(2)}</td></tr>`
+      )
+      .join("");
 }
 
 function render(s) {
@@ -271,6 +336,8 @@ function render(s) {
   renderSkills(s);
   renderUpcoming(s.upcoming);
   renderChanges(s.changes);
+  renderInbox(s.inbox);
+  renderUsage(s.skillUsage);
 }
 
 async function load() {
@@ -324,8 +391,18 @@ document.addEventListener("click", async (e) => {
   e.preventDefault();
   try {
     await post("/api/open/note", { file: n.dataset.note });
+    load(); // opening an item marks it read in the inbox
   } catch (err) {
     toast(err.message, true);
+  }
+});
+
+$("#inbox-all").addEventListener("click", async () => {
+  try {
+    await post("/api/inbox/read", { all: true });
+    load();
+  } catch (e) {
+    toast(e.message, true);
   }
 });
 
@@ -389,7 +466,8 @@ $("#m-run").addEventListener("click", async () => {
   const k = current;
   try {
     const tier = currentTier;
-    await post(`/api/run/${k.name}`, { prompt: $("#m-prompt").value, tier });
+    const started = await runSkill(k.name, { prompt: $("#m-prompt").value, tier });
+    if (!started) return;
     closeModal();
     toast(t("startedOn", { label: I18N.skillLabel(k), model: modelName(state.models[tier]) }));
     load();

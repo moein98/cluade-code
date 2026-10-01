@@ -179,7 +179,7 @@ async function api(pathname, body) {
     : { cache: "no-store" };
   const r = await fetch(baseUrl + pathname, opts);
   const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(j.error || r.statusText);
+  if (!r.ok) throw Object.assign(new Error(j.error || r.statusText), { code: j.code });
   return j;
 }
 
@@ -190,14 +190,16 @@ const STR = {
     login: "Start at login", quit: "Quit Agentic OS", run: "Run", cancel: "Cancel",
     confirm: "Run {label}?", detail: "{model} · headless claude -p in the vault. This uses plan usage.",
     complete: "complete", failed: "failed", tokensOut: "tokens out", offline: "dashboard offline",
-    week: "Week", runs: "Runs",
+    week: "Week", runs: "Runs", inbox: "Inbox",
+    quota: "Quota guard", runAnyway: "Run anyway",
   },
   fa: {
     open: "باز کردن داشبورد", widget: "ویجت", runSkill: "اجرای مهارت", running: "در حال اجرا",
     login: "اجرا هنگام ورود به ویندوز", quit: "خروج از Agentic OS", run: "اجرا", cancel: "انصراف",
     confirm: "«{label}» اجرا شود؟", detail: "{model} · اجرای پس‌زمینه با claude -p در مخزن. از سهمیهٔ پلن مصرف می‌کند.",
     complete: "انجام شد", failed: "ناموفق", tokensOut: "توکن خروجی", offline: "داشبورد در دسترس نیست",
-    week: "هفته", runs: "اجرا",
+    week: "هفته", runs: "اجرا", inbox: "صندوق",
+    quota: "محافظ سهمیه", runAnyway: "باز هم اجرا کن",
   },
 };
 function L(key, vars) {
@@ -229,7 +231,22 @@ async function runSkill(skill) {
   });
   if (response !== 0) return;
   try {
-    await api(`/api/run/${skill.name}`, {});
+    try {
+      await api(`/api/run/${skill.name}`, {});
+    } catch (e) {
+      if (e.code !== "QUOTA") throw e;
+      const again = await dialog.showMessageBox({
+        type: "warning",
+        buttons: [L("runAnyway"), L("cancel")],
+        defaultId: 1,
+        cancelId: 1,
+        title: "Agentic OS",
+        message: L("quota"),
+        detail: e.message,
+      });
+      if (again.response !== 0) return;
+      await api(`/api/run/${skill.name}`, { force: true });
+    }
     poll();
   } catch (e) {
     dialog.showErrorBox("Agentic OS", e.message);
@@ -274,7 +291,8 @@ function refreshTray() {
   );
   if (s) {
     const share = (x) => (x.pct != null ? `${Math.round(x.pct)}%` : `${fmtTok(x.used)} / ${fmtTok(x.limit)}`);
-    tray.setToolTip(`Agentic OS\n5H ${share(s.fiveHour)} · ${L("week")} ${share(s.weekly)} · ${L("runs")} ${s.routines.runsToday}`);
+    const inboxText = s.inbox && s.inbox.count ? ` · ${L("inbox")} ${s.inbox.count}` : "";
+    tray.setToolTip(`Agentic OS\n5H ${share(s.fiveHour)} · ${L("week")} ${share(s.weekly)} · ${L("runs")} ${s.routines.runsToday}${inboxText}`);
   } else {
     tray.setToolTip(`Agentic OS — ${L("offline")}`);
   }

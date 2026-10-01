@@ -37,7 +37,7 @@ async function post(url, body) {
     body: JSON.stringify(body || {}),
   });
   const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(j.error || r.statusText);
+  if (!r.ok) throw Object.assign(new Error(j.error || r.statusText), { code: j.code });
   return j;
 }
 
@@ -108,6 +108,10 @@ function render() {
       next.textContent = `${t("next")} · ${t("nothingScheduled")}`;
     }
 
+    const inboxLine = $("#inbox-line");
+    inboxLine.hidden = !s.inbox.count;
+    inboxLine.textContent = `${t("inbox")} · ${t("inboxNew", { n: s.inbox.count })}`;
+
     const live = armed && Date.now() - armedAt <= 4000;
     $("#skills").innerHTML = s.skills
       .map((k) => {
@@ -166,9 +170,12 @@ $("#skills").addEventListener("click", async (e) => {
     await post(`/api/run/${k.name}`);
     load();
   } catch (err) {
-    showError(err.message);
+    // Over the quota guard: the widget doesn't override it; the dashboard can, after a confirm.
+    showError(err.code === "QUOTA" ? t("quotaBlocked", { reason: err.message }) : err.message);
   }
 });
+
+$("#inbox-line").addEventListener("click", () => (desktop ? desktop.openDashboard() : window.open("/", "_blank")));
 
 $("#last").addEventListener("click", async () => {
   const note = $("#last").dataset.note;

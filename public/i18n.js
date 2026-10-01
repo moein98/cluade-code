@@ -23,6 +23,13 @@ const I18N = (() => {
       offline: "Dashboard offline: {e}", next: "NEXT", clickToRun: "CLICK TO RUN",
       offlineTitle: "DASHBOARD OFFLINE", offlineText: "The Agentic OS server is not reachable.",
       openDashboard: "Open dashboard", hideWidget: "Hide widget", defaultModel: "DEFAULT",
+      inbox: "INBOX", inboxNew: "{n} NEW", markAllRead: "MARK ALL READ", inboxEmpty: "NOTHING NEW",
+      usageTitle: "SKILL USAGE · 30D", colSkill: "SKILL", colRuns7: "RUNS 7D", colCost7: "COST 7D",
+      colCost30: "COST 30D", noUsage: "NO RUNS IN THE LAST 30 DAYS",
+      quotaConfirm: "{window} usage is at {pct}% (guard {max}%). Run anyway?",
+      quotaBlocked: "Quota guard: {reason}", deferred: "DEFERRED · QUOTA", watch: "NEW FILE",
+      windows: { "5-hour": "5-hour", weekly: "weekly" },
+      kinds: { run: "RUN", output: "OUTPUT", "raw/market": "MARKET", "raw/research": "RESEARCH" },
       dur: (d, h, m) => (d ? `${d}D ${h}H` : `${h}H ${String(m).padStart(2, "0")}M`),
       durShort: (d, h, m) => (d ? `${d}D ${h}H` : `${h}H ${String(m).padStart(2, "0")}M`),
       days: { sun: "SUN", mon: "MON", tue: "TUE", wed: "WED", thu: "THU", fri: "FRI", sat: "SAT" },
@@ -51,6 +58,13 @@ const I18N = (() => {
       offline: "داشبورد در دسترس نیست: {e}", next: "بعدی", clickToRun: "دوباره کلیک کن",
       offlineTitle: "داشبورد خاموش است", offlineText: "سرور Agentic OS در دسترس نیست.",
       openDashboard: "باز کردن داشبورد", hideWidget: "پنهان کردن ویجت", defaultModel: "پیش‌فرض",
+      inbox: "صندوق خروجی‌ها", inboxNew: "{n} تازه", markAllRead: "همه خوانده شد", inboxEmpty: "چیز تازه‌ای نیست",
+      usageTitle: "مصرف مهارت‌ها · ۳۰ روز", colSkill: "مهارت", colRuns7: "اجرا ۷ روز", colCost7: "هزینه ۷ روز",
+      colCost30: "هزینه ۳۰ روز", noUsage: "در ۳۰ روز گذشته اجرایی نبوده",
+      quotaConfirm: "مصرف {window} به {pct}٪ رسیده (حد محافظ {max}٪). باز هم اجرا شود؟",
+      quotaBlocked: "محافظ سهمیه: {reason}", deferred: "عقب افتاد · سهمیه", watch: "فایل جدید",
+      windows: { "5-hour": "۵ ساعته", weekly: "هفتگی" },
+      kinds: { run: "اجرا", output: "خروجی", "raw/market": "بازار", "raw/research": "تحقیق" },
       dur: (d, h, m) => (d ? `${d} روز و ${h} ساعت` : h ? `${h} ساعت و ${m} دقیقه` : `${m} دقیقه`),
       durShort: (d, h, m) => (d ? `${d} روز ${h} س` : `${h} س ${m} د`),
       days: { sun: "یکشنبه", mon: "دوشنبه", tue: "سه‌شنبه", wed: "چهارشنبه", thu: "پنجشنبه", fri: "جمعه", sat: "شنبه" },
@@ -102,8 +116,10 @@ const I18N = (() => {
   const dayName = (d) => S[lang].days[d] || d.toUpperCase();
   const domain = (d) => S[lang].domains[d] || d;
   const tier = (x) => S[lang].tiers[x] || String(x || "").toUpperCase();
+  const kind = (k) => S[lang].kinds[k] || String(k || "").toUpperCase();
+  const windowName = (w) => S[lang].windows[w] || w;
   // Skill display name: a translation from config (skill.labels.fa) when there is one.
   const skillLabel = (skill, fallback) => (skill && skill.labels && skill.labels[lang]) || (skill && skill.label) || fallback || "";
 
-  return { t, set, lang: () => lang, hm, dur, dayLabel, when, dayName, domain, tier, skillLabel };
+  return { t, set, lang: () => lang, hm, dur, dayLabel, when, dayName, domain, tier, kind, windowName, skillLabel };
 })();

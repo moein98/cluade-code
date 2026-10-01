@@ -97,14 +97,35 @@
       "domain": "Projects",
       "tier": "light",
       "allowedTools": ["Read", "Glob", "Grep"]
+    },
+    {
+      "name": "ingest-source",
+      "labels": { "fa": "ثبت منبع جدید" },
+      "domain": "Memory",
+      "tier": "standard",
+      "prompt": "Use the ingest-source skill for these new files in raw/:\n{{files}}",
+      "allowedTools": ["Read", "Write", "Edit", "Glob", "Grep"]
     }
+  ],
+  "quotaGuard": { "enabled": true, "fiveHourMax": 80, "weeklyMax": 90 },
+  "telegram": {
+    "enabled": false,
+    "botToken": "",
+    "chatId": "",
+    "proxy": "",
+    "skills": ["morning-brief", "market-scan", "weekly-review"],
+    "notifyFailures": true
+  },
+  "inbox": { "folders": ["output", "raw/market", "raw/research"], "days": 14 },
+  "watchers": [
+    { "skill": "ingest-source", "folder": "raw", "exclude": ["raw/market", "raw/research", "raw/assets"], "debounceSec": 90 }
   ],
   "cloudRoutines": [],
   "cloudSync": {
     "enabled": false,
     "intervalMin": 15,
     "branches": ["main"],
-    "copy": [{ "from": "reports/market", "to": "raw/market", "rename": "{name}-market-scan.md" }]
+    "copy": [{ "from": "reports/market", "to": "raw/market", "rename": "{name}-market-scan.md", "skill": "market-scan" }]
   },
   "integrations": []
 }

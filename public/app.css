@@ -144,6 +144,8 @@ h1 .o {
 .integ-item { display: inline-flex; align-items: center; gap: 8px; font-size: 11px; letter-spacing: .12em; color: var(--ink-2); text-transform: uppercase; }
 .integ-item::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--ok); }
 .integ-item.bad::before { background: var(--err); }
+.integ-item[data-action] { cursor: pointer; }
+.integ-item[data-action]:hover { color: var(--ink); }
 
 .rule { border: 0; border-top: 1px solid #242424; margin: 30px 0; }
 
@@ -240,6 +242,26 @@ textarea:focus { outline: none; border-color: var(--orange-deep); }
 }
 .toast.bad { border-color: var(--err); }
 
+/* quota guard marker on the usage meters */
+.meter .mark { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--ink-2); opacity: .55; }
+
+/* inbox and skill usage */
+.list-head { display: flex; justify-content: space-between; align-items: baseline; }
+.link-btn {
+  background: none; border: 0; padding: 0; cursor: pointer;
+  color: var(--link); font: 500 10.5px/1 var(--font); letter-spacing: .12em; text-decoration: underline; text-underline-offset: 2px;
+}
+.st.kind { font-size: 10px; letter-spacing: .12em; color: var(--dim); }
+.usage { width: 100%; border-collapse: collapse; margin-top: 12px; }
+.usage th { font-size: 10px; letter-spacing: .12em; color: var(--dim); font-weight: 500; text-align: start; padding: 0 0 6px; }
+.usage td { height: 33px; border-top: 1px solid var(--line-soft); }
+.usage td.nm { max-width: 220px; }
+.usage td.num { font-size: 11.5px; color: var(--ink-2); white-space: nowrap; padding-inline-start: 10px; }
+.usage td.bar { width: 30%; padding-inline-start: 12px; }
+.usage td.bar span { display: block; height: 6px; background: var(--orange); border-radius: 1px; min-width: 2px; }
+.duo + .block { margin-top: 44px; }
+.bottom + .duo { margin-top: 16px; }
+
 /* Persian (RTL). Letter-spacing breaks Persian letter joining, so it is off except for the Latin logo. */
 .brand { direction: ltr; }
 .chart { direction: ltr; }
@@ -259,6 +281,8 @@ html[lang="fa"] .status { font-size: 34px; }
 html[lang="fa"] .empty { font-size: 12px; }
 html[lang="fa"] .skill { text-align: right; }
 html[lang="fa"] .list-card li { grid-template-columns: 130px 1fr auto; }
+html[lang="fa"] .link-btn, html[lang="fa"] .usage th, html[lang="fa"] .st.kind { font-size: 12px; }
+html[lang="fa"] .usage td.num { font-size: 12.5px; }
 
 @media (max-width: 1000px) {
   .tiles, .duo { grid-template-columns: 1fr; }

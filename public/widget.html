@@ -45,6 +45,8 @@
   .w-last .stats { margin-top: 0; font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .w-next { margin-top: 10px; font-size: 10px; color: var(--mute); letter-spacing: .08em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .w-next.err { color: #e0786f; }
+  .w-inbox { margin-top: 6px; font-size: 10px; color: var(--link); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+  html[lang="fa"] .w-inbox { font-size: 11.5px; }
   .w-skills { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: 6px; }
   .w-skill {
     background: var(--panel-2); border: 1px solid var(--line); border-radius: 2px;
@@ -86,6 +88,7 @@
     <div class="w-sep"></div>
     <div class="w-last" id="last"></div>
     <div class="w-next" id="next"></div>
+    <div class="w-inbox" id="inbox-line" hidden></div>
     <div class="accent-lbl" style="margin-top:14px" data-i18n="skills">SKILLS</div>
     <div class="w-skills" id="skills"></div>
   </div>
