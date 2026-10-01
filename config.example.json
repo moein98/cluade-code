@@ -81,7 +81,6 @@
       "name": "market-scan",
       "domain": "Trading",
       "tier": "standard",
-      "schedule": "07:30",
       "allowedTools": ["WebSearch", "WebFetch", "Read", "Write", "Glob"]
     },
     {
@@ -91,5 +90,12 @@
       "allowedTools": ["Read", "Glob", "Grep"]
     }
   ],
+  "cloudRoutines": [],
+  "cloudSync": {
+    "enabled": false,
+    "intervalMin": 15,
+    "branches": ["main"],
+    "copy": [{ "from": "reports/market", "to": "raw/market", "rename": "{name}-market-scan.md" }]
+  },
   "integrations": []
 }

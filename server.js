@@ -7,6 +7,7 @@ const { spawn } = require("child_process");
 const usage = require("./lib/usage");
 const { createRunner } = require("./lib/runner");
 const { createIntegrations } = require("./lib/integrations");
+const { createCloudSync } = require("./lib/cloudsync");
 
 const ROOT = __dirname;
 const cfgFile = ["config.json", "config.example.json"].map((f) => path.join(ROOT, f)).find((f) => fs.existsSync(f));
@@ -16,6 +17,7 @@ fs.mkdirSync(DATA, { recursive: true });
 const vault = cfg.vault.path;
 const runner = createRunner(cfg, DATA);
 const integrations = createIntegrations(cfg);
+const cloudSync = createCloudSync(cfg, ROOT);
 
 const STATIC = {
   "/": ["index.html", "text/html; charset=utf-8"],
@@ -53,6 +55,32 @@ function vaultChanges(hours) {
   return out.sort((a, b) => b.at - a.at).slice(0, 12);
 }
 
+// Cloud routines (Claude Code Routines) run on Anthropic's side; list their next fire time locally.
+function cloudUpcoming() {
+  const now = Date.now();
+  const out = [];
+  for (const r of cfg.cloudRoutines || []) {
+    const [h, m] = r.schedule.split(":").map(Number);
+    for (let i = 0; i <= 1; i++) {
+      const d = new Date(now);
+      d.setDate(d.getDate() + i);
+      d.setHours(h, m, 0, 0);
+      const t = d.getTime();
+      if (t > now && t - now <= 24 * 3600e3) out.push({ skill: r.id, label: `${r.label} · CLOUD`, at: t });
+    }
+  }
+  return out;
+}
+
+function integrationList() {
+  const list = integrations.list();
+  const cloud = cloudSync.status();
+  if (list === null || !cloud.enabled) return list;
+  const t = new Date(cloud.lastSync);
+  const status = cloud.error || (cloud.lastSync ? `synced ${pad(t.getHours())}:${pad(t.getMinutes())}` : "pending");
+  return [...list, { name: "cloud sync", ok: !cloud.error, status }];
+}
+
 function state() {
   const u = usage.summary(cfg);
   const runs = runner.list();
@@ -66,7 +94,7 @@ function state() {
     weekly: u.weekly,
     routines: { runsToday: runner.runsToday(), limit: cfg.dailyRunLimit, costToday: u.costToday },
     activity: u.activity,
-    integrations: integrations.list(),
+    integrations: integrationList(),
     lastRun: runs[0] || null,
     recentRuns: runs.slice(0, 8),
     skills: runner.skills().map((s) => ({
@@ -83,7 +111,7 @@ function state() {
     })),
     models: cfg.models || {},
     domains: cfg.domains || [],
-    upcoming: runner.upcoming(),
+    upcoming: [...runner.upcoming(), ...cloudUpcoming()].sort((a, b) => a.at - b.at),
     changes: vaultChanges(48),
   };
 }

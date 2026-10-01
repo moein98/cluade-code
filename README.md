@@ -54,6 +54,15 @@ widget.vbs           ← ویجت شناور (WPF، بدون نصب چیز اض�
 - **SKILLS** — کلیک → prompt قابل ویرایش → `claude -p` headless در vault (`Ctrl+Enter` = اجرا).
 - **UPCOMING · 24H / VAULT CHANGES · 48H**
 
+## Routineهای ابری
+
+Claude Code Routines در سرورهای Anthropic اجرا می‌شوند، حتی وقتی سیستم خاموش است. خروجی‌شان را در همین ریپو commit می‌کنند.
+
+- **Market Scan:** هر روز ۰۷:۰۰ تهران (`30 3 * * *` UTC)، با Sonnet 5.5. گزارش در `reports/market/YYYY-MM-DD.md` ذخیره می‌شود. مدیریت: https://claude.ai/code/routines
+- **همگام‌سازی:** داشبورد هر ۱۵ دقیقه `git fetch` می‌کند و گزارش‌های جدید را در `<vault>/raw/market/YYYY-MM-DD-market-scan.md` کپی می‌کند. این کار working tree را تغییر نمی‌دهد و تنظیمش در `config.json → cloudSync` است. morning-brief ساعت ۰۸:۰۰ همین فایل را می‌خواند.
+- اجرای ابری در Upcoming با برچسب `CLOUD` دیده می‌شود، و وضعیت همگام‌سازی در Integrations با نام `CLOUD SYNC`.
+- ریپو Public است، پس گزارش‌های ابری هم عمومی‌اند.
+
 ## انتخاب مدل (model routing)
 
 هر skill یک سطح (`tier`) دارد و هر سطح به یک مدل وصل است (`config.json → models`):
