@@ -259,7 +259,19 @@ function visibleAlpha(n) {
   return 1;
 }
 
+// Draws only while something moves (layout transitions, fly-to, the orbit's motion); otherwise the
+// canvas stays still and costs no CPU. Any input event wakes it.
+let raf = 0;
+function wake() {
+  if (!raf) raf = requestAnimationFrame(frame);
+}
+for (const ev of ["mousemove", "mousedown", "mouseup", "wheel", "keydown", "click", "input", "change", "resize", "visibilitychange"]) {
+  window.addEventListener(ev, wake, { passive: true });
+}
+
 function frame(now) {
+  raf = 0;
+  let moving = false;
   if (mode === "orbit") {
     const a = $("#motion").checked ? now * ORBIT_SPEED : frame.frozen ?? 0;
     if (!$("#motion").checked) frame.frozen = a;
@@ -274,15 +286,18 @@ function frame(now) {
       n.depth = k;
     }
   }
+  if (mode === "orbit" && $("#motion").checked && !document.hidden) moving = true;
   for (const n of nodes) {
     n.x += (n.tx - n.x) * SPEED;
     n.y += (n.ty - n.y) * SPEED;
+    if (Math.abs(n.tx - n.x) > 0.05 || Math.abs(n.ty - n.y) > 0.05) moving = true;
   }
   if (viewTarget) {
     view.s += (viewTarget.s - view.s) * SPEED;
     view.x += (viewTarget.x - view.x) * SPEED;
     view.y += (viewTarget.y - view.y) * SPEED;
     if (Math.abs(viewTarget.s - view.s) < 0.001 && Math.abs(viewTarget.x - view.x) < 0.5) viewTarget = null;
+    moving = true;
   }
 
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -372,7 +387,7 @@ function frame(now) {
     }
   }
   ctx.globalAlpha = 1;
-  requestAnimationFrame(frame);
+  if (moving) wake();
 }
 
 // ---------- interaction ----------
@@ -551,7 +566,7 @@ async function main() {
   const fromHash = /#mode=(\w+)/.exec(location.hash); // e.g. /brain#mode=links
   setMode(fromHash ? fromHash[1] : pref("mode", "rings"));
   fit(false);
-  requestAnimationFrame(frame);
+  wake();
 }
 
 main().catch((e) => toast(e.message, true));

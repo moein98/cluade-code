@@ -8,3 +8,6 @@ config.json
 docs/
 
 node_modules/
+
+# Built app (npm run dist)
+dist/

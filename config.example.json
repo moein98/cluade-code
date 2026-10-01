@@ -300,5 +300,14 @@
   "remoteControl": {
     "autoStart": false,
     "name": "Agentic OS"
+  },
+  "semantic": {
+    "enabled": false,
+    "ollamaPath": "",
+    "modelsDir": "",
+    "model": "bge-m3",
+    "host": "http://127.0.0.1:11434",
+    "idleMin": 5,
+    "gpu": false
   }
 }

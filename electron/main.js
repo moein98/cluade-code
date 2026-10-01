@@ -1,12 +1,16 @@
 // Agentic OS desktop app: dashboard window, floating widget, tray menu and run notifications.
 // Runs the dashboard server in-process (or attaches to one that is already running).
+// Kept light: windows are destroyed (not hidden) when closed, the tray reads state in-process
+// only when its menu opens or once a minute for the tooltip, and run notifications come from a
+// server hook instead of polling.
 const { app, BrowserWindow, Tray, Menu, Notification, nativeImage, ipcMain, shell, nativeTheme, dialog, screen } =
   require("electron");
 const path = require("path");
 const fs = require("fs");
+const { execFile } = require("child_process");
 const server = require("../server");
 
-const PREFS_FILE = path.join(server.root, "data", "desktop.json");
+const PREFS_FILE = path.join(server.home, "data", "desktop.json");
 const WIDGET_WIDTH = 340;
 
 let prefs = { widgetVisible: true, widgetPos: null };
@@ -24,7 +28,8 @@ let widgetWin = null;
 let tray = null;
 let quitting = false;
 let lastState = null;
-const seenStatus = new Map(); // run id -> status, to notify on RUNNING -> done
+let inProcess = false; // this process runs the server (else it attached to another instance)
+const seenStatus = new Map(); // run id -> status, to notify on RUNNING -> done (attached mode)
 
 // Same pixel robot as public/robot.svg, drawn into a BGRA bitmap (tray icons can't be SVG).
 function robotIcon(scale) {
@@ -89,13 +94,7 @@ function showMain() {
     lockNavigation(mainWin);
     mainWin.loadURL(baseUrl);
     mainWin.once("ready-to-show", () => mainWin.show());
-    // Closing hides to the tray so the scheduler keeps running.
-    mainWin.on("close", (e) => {
-      if (!quitting) {
-        e.preventDefault();
-        mainWin.hide();
-      }
-    });
+    // Closing frees the window's memory; the app, scheduler and tray keep running.
     mainWin.on("closed", () => (mainWin = null));
     return;
   }
@@ -145,22 +144,21 @@ function createWidget() {
     prefs.widgetPos = { x, y };
     savePrefs();
   });
-  widgetWin.on("close", (e) => {
-    if (!quitting) {
-      e.preventDefault();
-      toggleWidget(false);
-    }
-  });
+  widgetWin.on("closed", () => (widgetWin = null));
 }
 
+// Showing creates the widget window; hiding destroys it so it uses no memory while off.
 function toggleWidget(force) {
-  if (!widgetWin) createWidget();
-  const show = typeof force === "boolean" ? force : !widgetWin.isVisible();
-  if (show) widgetWin.showInactive();
-  else widgetWin.hide();
+  const show = typeof force === "boolean" ? force : !widgetWin;
+  if (show && !widgetWin) {
+    prefs.widgetVisible = true;
+    createWidget();
+  } else if (!show && widgetWin) {
+    widgetWin.destroy();
+    widgetWin = null;
+  }
   prefs.widgetVisible = show;
   savePrefs();
-  refreshTray();
 }
 
 ipcMain.on("widget:resize", (e, height) => {
@@ -253,15 +251,27 @@ async function runSkill(skill) {
   }
 }
 
-function refreshTray() {
-  if (!tray) return;
+// Current state: straight from the in-process server, else over HTTP.
+async function readState() {
+  try {
+    lastState = inProcess ? server.state() : await api("/api/state");
+  } catch {
+    lastState = null;
+  }
+  return lastState;
+}
+
+// The menu is built fresh each time it opens, so it never needs polling to stay current.
+async function showTrayMenu() {
+  await readState();
+  updateTooltip();
   const s = lastState;
   const skills = (s && s.skills) || [];
-  const login = app.getLoginItemSettings(loginOptions()).openAtLogin;
-  tray.setContextMenu(
+  const login = loginEnabled();
+  tray.popUpContextMenu(
     Menu.buildFromTemplate([
       { label: L("open"), click: showMain },
-      { label: L("widget"), type: "checkbox", checked: !!(widgetWin && widgetWin.isVisible()), click: () => toggleWidget() },
+      { label: L("widget"), type: "checkbox", checked: !!widgetWin, click: () => toggleWidget() },
       { label: L("remote"), click: () => api("/api/open/remote", {}).catch((e) => dialog.showErrorBox("Agentic OS", e.message)) },
       { type: "separator" },
       {
@@ -278,18 +288,20 @@ function refreshTray() {
         label: L("login"),
         type: "checkbox",
         checked: login,
-        click: (item) => app.setLoginItemSettings({ ...loginOptions(), openAtLogin: item.checked }),
+        click: (item) => setLogin(item.checked),
       },
       { type: "separator" },
       {
         label: L("quit"),
-        click: () => {
-          quitting = true;
-          app.quit();
-        },
+        click: () => app.quit(),
       },
     ])
   );
+}
+
+function updateTooltip() {
+  if (!tray) return;
+  const s = lastState;
   if (s) {
     const share = (x) => (x.pct != null ? `${Math.round(x.pct)}%` : `${fmtTok(x.used)} / ${fmtTok(x.limit)}`);
     const inboxText = s.inbox && s.inbox.count ? ` · ${L("inbox")} ${s.inbox.count}` : "";
@@ -303,16 +315,29 @@ function refreshTray() {
 // so the login item must also pass the app path.
 function loginOptions() {
   return app.isPackaged
-    ? { name: "Agentic OS", args: ["--hidden"] }
+    ? { name: "Agentic OS", path: process.execPath, args: ["--hidden"] }
     : { name: "Agentic OS", path: process.execPath, args: [app.getAppPath(), "--hidden"] };
+}
+const loginEnabled = () => app.getLoginItemSettings(loginOptions()).openAtLogin;
+const setLogin = (on) => app.setLoginItemSettings({ ...loginOptions(), openAtLogin: on });
+
+// The exe takes over an "Agentic OS" login entry that still points at the development launcher.
+function migrateLoginItem() {
+  if (!app.isPackaged || loginEnabled()) return;
+  const key = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run";
+  execFile("reg.exe", ["query", key, "/v", "Agentic OS"], { windowsHide: true }, (err, out) => {
+    if (!err && /Agentic OS\s+REG_SZ/i.test(String(out))) {
+      setLogin(true);
+      console.log("Start at login now launches the exe");
+    }
+  });
 }
 
 // `--set-login=on|off` toggles start-at-login from the command line (also via a second instance).
 function applyLoginFlag(argv) {
   const flag = argv.find((a) => a.startsWith("--set-login="));
   if (!flag) return false;
-  app.setLoginItemSettings({ ...loginOptions(), openAtLogin: flag === "--set-login=on" });
-  refreshTray();
+  setLogin(flag === "--set-login=on");
   return true;
 }
 
@@ -332,42 +357,62 @@ function notifyFinished(run) {
   n.show();
 }
 
+// Tooltip once a minute. Attached to another server instance, this is also how finished runs
+// are noticed (no hook across processes), so it checks more often while one is running.
 async function poll() {
-  try {
-    lastState = await api("/api/state");
+  await readState();
+  if (!inProcess && lastState) {
     for (const r of lastState.recentRuns) {
       const before = seenStatus.get(r.id);
       if (before === "RUNNING" && r.status !== "RUNNING") notifyFinished(r);
       seenStatus.set(r.id, r.status);
     }
-  } catch {
-    lastState = null;
   }
-  refreshTray();
-  const busy = lastState && lastState.recentRuns.some((r) => r.status === "RUNNING");
+  updateTooltip();
+  const busy = !inProcess && lastState && lastState.recentRuns.some((r) => r.status === "RUNNING");
   clearTimeout(poll.timer);
-  poll.timer = setTimeout(poll, busy ? 3000 : 10000);
+  poll.timer = setTimeout(poll, busy ? 5000 : 60e3);
 }
 
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
+  // A second launch shows the dashboard; `--quit` closes the running app (e.g. before a rebuild).
   app.on("second-instance", (_e, argv) => {
-    if (!applyLoginFlag(argv)) showMain();
+    if (argv.includes("--quit")) app.quit();
+    else if (!applyLoginFlag(argv)) showMain();
   });
   app.on("window-all-closed", (e) => e.preventDefault()); // stay in the tray
-  app.on("before-quit", () => (quitting = true));
+  // Quit: stop the Ollama this app started (unless another program uses it), then exit.
+  app.on("before-quit", (e) => {
+    if (quitting) return;
+    quitting = true;
+    e.preventDefault();
+    Promise.race([server.stop(), new Promise((r) => setTimeout(r, 4000))]).finally(() => app.quit());
+  });
 
   app.whenReady().then(async () => {
+    if (process.argv.includes("--quit")) return app.quit(); // nothing was running
     nativeTheme.themeSource = "dark";
     app.setAppUserModelId("Agentic OS"); // needed for Windows notifications
-    const started = await server.start({ hooks: { toggleWidget: () => toggleWidget() } });
+    const started = await server.start({
+      hooks: {
+        toggleWidget: () => toggleWidget(),
+        onRunFinished: (run) => {
+          notifyFinished(run);
+          readState().then(updateTooltip);
+        },
+      },
+    });
     baseUrl = started.url;
-    if (started.alreadyRunning) console.log("Attached to the dashboard server that is already running.");
+    inProcess = !started.alreadyRunning;
+    if (!inProcess) console.log("Attached to the dashboard server that is already running.");
 
     tray = new Tray(robotIcon(3));
     tray.on("click", showMain);
-    createWidget();
+    tray.on("right-click", () => showTrayMenu());
+    if (prefs.widgetVisible) createWidget();
+    migrateLoginItem();
     const loginFlag = applyLoginFlag(process.argv);
     if (!process.argv.includes("--hidden") && !loginFlag) showMain();
     poll();

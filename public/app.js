@@ -194,7 +194,8 @@ function renderIntegrations(list) {
   }
   el.innerHTML = list
     .map((i) => {
-      // Clicking TELEGRAM sends a test message; MEMORY MAP re-runs the map check.
+      // Clicking TELEGRAM sends a test message; MEMORY MAP re-runs the map check; SEMANTIC SEARCH
+      // updates the index now.
       const test = i.name === "telegram" ? ` data-action="tg-test" role="button"` : i.action ? ` data-action="${esc(i.action)}" role="button"` : "";
       return `<span class="integ-item${i.ok ? "" : " bad"}"${test} title="${esc(i.status)}"><bdi>${esc(i.name)}</bdi></span>`;
     })
@@ -212,6 +213,10 @@ $("#integ").addEventListener("click", async (e) => {
       const r = await post("/api/map/check");
       toast(t("mapChecked", { result: r.ok ? "✓" : r.problems.slice(0, 3).join(" | ") }), !r.ok);
       load();
+    } else if (a.dataset.action === "semantic-index") {
+      await post("/api/semantic/index");
+      toast(t("indexing"));
+      setTimeout(load, 3000);
     }
   } catch (err) {
     toast(err.message, true);
@@ -386,8 +391,12 @@ async function load() {
   }
   const busy = state && state.recentRuns.some((r) => r.status === "RUNNING");
   clearTimeout(load.timer);
-  load.timer = setTimeout(load, busy ? 3000 : 15000);
+  // No polling while the window is hidden or minimized; catch up as soon as it is visible.
+  if (!document.hidden) load.timer = setTimeout(load, busy ? 3000 : 15000);
 }
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) load();
+});
 
 // Language switch (stored on the server so the widget and tray follow it)
 document.querySelectorAll("[data-lang]").forEach((b) =>
@@ -564,27 +573,38 @@ $("#fb-send").addEventListener("click", async () => {
   }
 });
 
-// Vault search (BM25 over the notes).
+// Vault search: keyword results (BM25) appear at once; when semantic search is on, the hybrid
+// (meaning + keywords) answer replaces them a moment later. Only the newest query is shown.
+// Focusing the box warms up Ollama so that answer comes quickly.
+let searchSeq = 0;
+function renderHits(hits) {
+  $("#vault-results").innerHTML = hits.length
+    ? hits
+        .map((h) => `<li class="hit" data-note="${esc(h.file)}"><span class="nm file"><bdi>${esc(h.file)}</bdi></span><span class="snip" dir="auto">${esc(h.snippet)}</span></li>`)
+        .join("")
+    : `<li class="empty">${t("noResults")}</li>`;
+}
+$("#vault-q").addEventListener("focus", () => post("/api/semantic/warm").catch(() => {}));
 $("#vault-q").addEventListener(
   "input",
   debounce(async () => {
     const q = $("#vault-q").value.trim();
-    const el = $("#vault-results");
+    const seq = ++searchSeq;
     if (!q) {
-      el.innerHTML = "";
+      $("#vault-results").innerHTML = "";
       return;
     }
+    const url = `/api/search?q=${encodeURIComponent(q)}`;
     try {
-      const hits = await (await fetch(`/api/search?q=${encodeURIComponent(q)}`)).json();
-      el.innerHTML = hits.length
-        ? hits
-            .map((h) => `<li class="hit" data-note="${esc(h.file)}"><span class="nm file"><bdi>${esc(h.file)}</bdi></span><span class="snip" dir="auto">${esc(h.snippet)}</span></li>`)
-            .join("")
-        : `<li class="empty">${t("noResults")}</li>`;
+      const quick = await (await fetch(`${url}&mode=keyword`)).json();
+      if (seq !== searchSeq) return;
+      renderHits(quick);
+      const full = await (await fetch(url)).json();
+      if (seq === searchSeq && full.some((h) => h.mode === "hybrid")) renderHits(full);
     } catch (e) {
       toast(e.message, true);
     }
-  }, 300)
+  }, 350)
 );
 
 // Claude Code sessions: recent list, full-text search, resume in a terminal.

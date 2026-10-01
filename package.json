@@ -1,14 +1,16 @@
 {
   "name": "agentic-os",
-  "version": "1.1.0",
+  "version": "1.6.0",
   "private": true,
   "description": "Local command center for Claude Code + Obsidian: usage windows, skill launcher, scheduled routines, run history.",
   "main": "electron/main.js",
   "scripts": {
     "start": "node server.js --open",
-    "app": "electron ."
+    "app": "electron .",
+    "dist": "node scripts/build.js"
   },
   "devDependencies": {
-    "electron": "^40.10.2"
+    "electron": "^40.10.2",
+    "rcedit": "^4.0.1"
   }
 }

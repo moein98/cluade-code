@@ -2,6 +2,7 @@
 // Zero dependencies: node server.js [--open]. The Electron app (electron/main.js) calls start() in-process.
 const http = require("http");
 const fs = require("fs");
+const os = require("os");
 const path = require("path");
 const { spawn } = require("child_process");
 const usage = require("./lib/usage");
@@ -16,13 +17,33 @@ const { createQuality } = require("./lib/quality");
 const { createSearch } = require("./lib/search");
 const { createSessions } = require("./lib/sessions");
 const { checkMap } = require("./lib/mapcheck");
+const { createOllama } = require("./lib/ollama");
+const { createSemantic } = require("./lib/semantic");
 const { buildBrain } = require("./lib/brain");
 const limits = require("./lib/limits");
 
-const ROOT = __dirname;
-const cfgFile = ["config.json", "config.example.json"].map((f) => path.join(ROOT, f)).find((f) => fs.existsSync(f));
+// APP holds the code and pages; HOME holds config.json and data/. They are the same folder in
+// development. The packaged exe (resources/app) finds HOME through AGENTIC_OS_HOME, else a
+// config.json beside or up to two folders above the exe (dist/Agentic OS/ inside the project),
+// else %APPDATA%\Agentic OS, created from config.example.json on first start.
+const APP = __dirname;
+function findHome() {
+  if (process.env.AGENTIC_OS_HOME) return path.resolve(process.env.AGENTIC_OS_HOME);
+  if (!/[\\/]resources[\\/]app$/i.test(APP)) return APP;
+  let dir = path.dirname(process.execPath);
+  for (let i = 0; i < 3; i++, dir = path.dirname(dir)) {
+    if (fs.existsSync(path.join(dir, "config.json"))) return dir;
+  }
+  const home = path.join(process.env.APPDATA || os.homedir(), "Agentic OS");
+  fs.mkdirSync(home, { recursive: true });
+  const conf = path.join(home, "config.json");
+  if (!fs.existsSync(conf)) fs.copyFileSync(path.join(APP, "config.example.json"), conf);
+  return home;
+}
+const HOME = findHome();
+const cfgFile = [path.join(HOME, "config.json"), path.join(APP, "config.example.json")].find((f) => fs.existsSync(f));
 const cfg = JSON.parse(fs.readFileSync(cfgFile, "utf8"));
-const DATA = path.join(ROOT, "data");
+const DATA = path.join(HOME, "data");
 fs.mkdirSync(DATA, { recursive: true });
 const vault = cfg.vault.path;
 // Created only once this process owns the port, so a second instance never runs a second scheduler.
@@ -38,6 +59,11 @@ const learnings = createLearnings(cfg);
 const quality = createQuality(cfg, DATA);
 const vaultSearch = createSearch(vault, { skipDirs: [cfg.vault.runsFolder] });
 const sessions = createSessions(usage.costOf, [DATA]); // quality checks run in data/
+const ollama = createOllama(cfg, DATA);
+const semantic = createSemantic(cfg, DATA, ollama);
+// Vault search: hybrid (meaning + keywords) when semantic search is on and indexed, else keywords.
+// Ollama is started for the query and stopped again after a few idle minutes (lib/ollama.js).
+const searchVault = (q, n = 12) => semantic.search(q, (qq, k) => vaultSearch.search(qq, k), n);
 
 // Which skill produced a vault file: a run note, or a cloud report copied by a cloudSync rule.
 function skillForFile(rel) {
@@ -181,8 +207,14 @@ const STATIC = {
 const pad = (n) => String(n).padStart(2, "0");
 const dayKey = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
-// Recently modified vault notes (skips dot-folders and the runs folder).
+// Recently modified vault notes (skips dot-folders and the runs folder). Walks the whole vault,
+// so the result is cached for a minute.
+let changesCache = null;
 function vaultChanges(hours) {
+  if (!changesCache || Date.now() - changesCache.at > 60e3) changesCache = { at: Date.now(), list: scanChanges(hours) };
+  return changesCache.list;
+}
+function scanChanges(hours) {
   const since = Date.now() - hours * 3600e3;
   const out = [];
   const walk = (dir, rel) => {
@@ -242,14 +274,27 @@ function cloudUpcoming() {
 }
 
 function integrationList() {
-  const list = integrations.list();
-  if (list === null) return list;
-  const out = [...list];
+  // Local items show at once; MCP connectors join when `claude mcp list` has answered.
+  const out = [...(integrations.list() || [])];
   const cloud = cloudSync.status();
   if (cloud.enabled) {
     const t = new Date(cloud.lastSync);
     const status = cloud.error || (cloud.lastSync ? `synced ${pad(t.getHours())}:${pad(t.getMinutes())}` : "pending");
     out.push({ name: "cloud sync", ok: !cloud.error, status });
+  }
+  if (cfg.semantic && cfg.semantic.enabled) {
+    const o = ollama.status();
+    const sm = semantic.status();
+    const status = o.pulling
+      ? `downloading ${o.model}… ${o.progress}%`
+      : sm.building
+        ? "indexing…"
+        : sm.error ||
+          o.error ||
+          (sm.ready
+            ? `${sm.files} notes · ${o.model} · Ollama ${o.running ? "on" : "off (starts on demand)"}`
+            : "not indexed yet (the first search builds it)");
+    out.push({ name: "semantic search", ok: !o.error && !sm.error, status, action: "semantic-index" });
   }
   if (mapState) {
     const status = mapState.ok ? "OK" : `${mapState.problems.length} problem(s): ${mapState.problems.slice(0, 3).join(" | ")}`;
@@ -315,6 +360,14 @@ function skillUsage(runs) {
   }
   return [...by.values()].sort((a, b) => b.cost30 - a.cost30);
 }
+
+// One snapshot serves the dashboard, widget and tray for a few seconds; actions clear it.
+let stateCache = null;
+function cachedState() {
+  if (!stateCache || Date.now() - stateCache.at > 3000) stateCache = { at: Date.now(), value: state() };
+  return stateCache.value;
+}
+const invalidate = () => (stateCache = null);
 
 function state() {
   const live = limits.live();
@@ -423,7 +476,8 @@ function createSkill(b) {
     allowedTools: tools.length ? tools : ["Read", "Glob", "Grep"],
   };
   cfg.skills = [...(cfg.skills || []), entry];
-  fs.writeFileSync(path.join(ROOT, "config.json"), JSON.stringify(cfg, null, 2) + "\n", "utf8");
+  fs.writeFileSync(path.join(HOME, "config.json"), JSON.stringify(cfg, null, 2) + "\n", "utf8");
+  runner.reloadSkills();
   return entry;
 }
 
@@ -444,7 +498,7 @@ async function onTelegramCommand(text) {
     const rel = addNoteFromTelegram(note);
     return L(`📝 در ${rel} ذخیره شد.`, `📝 Saved to ${rel}.`);
   }
-  const s = state();
+  const s = cachedState();
   if (cmd === "/status") {
     const pct = (x) => (x.pct != null ? `${Math.round(x.pct)}%` : "—");
     const last = s.lastRun ? `${labelFor(s.lastRun.skill, s.lastRun.label)} · ${s.lastRun.status}` : "—";
@@ -514,7 +568,7 @@ function openTarget(what, body) {
     case "widget":
       // Inside the desktop app, toggle its widget window; otherwise launch the PowerShell widget.
       if (hooks.toggleWidget) hooks.toggleWidget();
-      else detached("wscript.exe", [path.join(ROOT, "widget.vbs")]);
+      else detached("wscript.exe", [path.join(APP, "widget.vbs")]);
       break;
     case "daily": {
       const rel = path.posix.join(cfg.vault.dailyFolder || "", `${dayKey(new Date())}.md`);
@@ -573,18 +627,25 @@ const server = http.createServer(async (req, res) => {
 
   if (req.method === "GET") {
     const st = STATIC[url.pathname];
-    if (st) return send(res, 200, fs.readFileSync(path.join(ROOT, "public", st[0])), st[1]);
+    if (st) return send(res, 200, fs.readFileSync(path.join(APP, "public", st[0])), st[1]);
     const q = url.searchParams.get("q") || "";
     try {
       if (url.pathname === "/api/sessions") return send(res, 200, q ? sessions.search(q) : sessions.list(30));
-      if (url.pathname === "/api/search") return send(res, 200, vaultSearch.search(q, 12));
+      if (url.pathname === "/api/search") {
+        const n = Math.min(20, Math.max(1, Number(url.searchParams.get("n")) || 12));
+        // mode=keyword: instant BM25 answer, shown while the hybrid one is on its way.
+        if (url.searchParams.get("mode") === "keyword") {
+          return send(res, 200, vaultSearch.search(q.slice(0, 500), n).map((h) => ({ ...h, mode: "keyword" })));
+        }
+        return send(res, 200, await searchVault(q.slice(0, 500), n));
+      }
       if (url.pathname === "/api/brain") return send(res, 200, brain());
     } catch (e) {
       return send(res, 500, { error: e.message });
     }
     if (url.pathname === "/api/state") {
       try {
-        return send(res, 200, state());
+        return send(res, 200, cachedState());
       } catch (e) {
         return send(res, 500, { error: e.message });
       }
@@ -594,6 +655,7 @@ const server = http.createServer(async (req, res) => {
   if (req.method === "POST") {
     if (req.headers["x-agentic-os"] !== "1") return send(res, 403, { error: "forbidden" });
     const body = await readBody(req);
+    invalidate();
     try {
       let m;
       if ((m = /^\/api\/run\/([\w-]+)$/.exec(url.pathname))) {
@@ -611,6 +673,15 @@ const server = http.createServer(async (req, res) => {
         return send(res, 200, { ok: r.ok, problems: r.problems });
       }
       if (url.pathname === "/api/skills") return send(res, 200, createSkill(body));
+      if (url.pathname === "/api/semantic/warm") {
+        semantic.warm();
+        return send(res, 200, { ok: true });
+      }
+      if (url.pathname === "/api/semantic/index") {
+        if (!(cfg.semantic && cfg.semantic.enabled)) throw new Error("semantic search is off (config.json → semantic.enabled)");
+        semantic.build(); // runs in the background; Ollama stops again when idle
+        return send(res, 200, { ok: true });
+      }
       if (url.pathname === "/api/inbox/read") {
         if (body.all === true) inbox.markAll();
         else inbox.markRead(String(body.file || ""));
@@ -646,33 +717,39 @@ function start(options = {}) {
     });
     server.listen(cfg.port, "127.0.0.1", () => {
       usage.setCalibrationFile(path.join(DATA, "limits.json"));
+      ollama.adopt();
       limits.refresh();
       telegram = createTelegram(cfg, DATA);
       runner = createRunner(cfg, DATA, {
         guard: quotaGuard,
         onFinish: (run, skill, result) => {
+          invalidate();
           telegram.onRun(run, labelFor(skill.name, skill.label), result);
           checkQuality(run, skill, result);
+          if (hooks.onRunFinished) hooks.onRunFinished(run);
         },
       });
       inbox = createInbox(cfg, DATA, () => runner.list(), (rel) => skillForFile(rel));
       telegram.startCommands(onTelegramCommand);
       setInterval(checkQuotaAlerts, 2 * 60e3);
       setTimeout(checkQuotaAlerts, 20e3);
-      // Map check: now, then nightly at 03:00 with a Telegram alert on problems.
+      // Map check: now, then nightly at 03:00 with a Telegram alert on problems. The semantic
+      // index catches up at the same time (Ollama runs only for that, then stops when idle);
+      // searches update it too, so it is never more than a day behind.
       setTimeout(() => runMapCheck(false), 3e3);
-      let mapCheckedDay = "";
+      let nightlyDay = "";
       setInterval(() => {
         const d = new Date();
-        if (d.getHours() === 3 && mapCheckedDay !== dayKey(d)) {
-          mapCheckedDay = dayKey(d);
+        if (d.getHours() === 3 && nightlyDay !== dayKey(d)) {
+          nightlyDay = dayKey(d);
           runMapCheck(true);
+          semantic.build();
         }
       }, 10 * 60e3);
       if (cfg.remoteControl && cfg.remoteControl.autoStart) setTimeout(() => openRemoteControl(true), 8e3);
       watchers = createWatchers(cfg, DATA, runner);
       integrations = createIntegrations(cfg);
-      cloudSync = createCloudSync(cfg, ROOT, {
+      cloudSync = createCloudSync(cfg, HOME, {
         onCopied: (rule, rel, text) => rule.skill && telegram.onCloudReport(rule.skill, labelFor(rule.skill), text),
       });
       console.log(`Agentic OS running at ${url}`);
@@ -681,11 +758,17 @@ function start(options = {}) {
   });
 }
 
-module.exports = { start, config: cfg, root: ROOT };
+// Before exit: stop the Ollama this app started, unless another program is using it.
+function stop() {
+  return ollama.shutdown().catch(() => {});
+}
+
+module.exports = { start, stop, state: cachedState, config: cfg, home: HOME, app: APP };
 
 if (require.main === module) {
   start().then(({ url, alreadyRunning }) => {
     if (process.argv.includes("--open")) detached("explorer.exe", [url]);
     if (alreadyRunning) setTimeout(() => process.exit(0), 500);
   });
+  for (const sig of ["SIGINT", "SIGTERM", "SIGBREAK"]) process.on(sig, () => stop().then(() => process.exit(0)));
 }

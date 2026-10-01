@@ -137,8 +137,12 @@ async function load() {
   render();
   const busy = state && state.recentRuns.some((x) => x.status === "RUNNING");
   clearTimeout(load.timer);
-  load.timer = setTimeout(load, busy ? 3000 : 10000);
+  // No polling while the widget is hidden; catch up as soon as it is visible.
+  if (!document.hidden) load.timer = setTimeout(load, busy ? 3000 : 10000);
 }
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) load();
+});
 
 function showError(msg) {
   flash = { msg, until: Date.now() + 5000 };
