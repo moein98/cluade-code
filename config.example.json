@@ -27,109 +27,278 @@
     "heavy": "claude-opus-5-5"
   },
   "defaultTier": "standard",
-  "domains": ["Memory", "Productivity", "Research", "Trading", "Projects"],
+  "domains": [
+    "Memory",
+    "Productivity",
+    "Research",
+    "Trading",
+    "Projects"
+  ],
   "skills": [
     {
       "name": "vault-cleanup",
-      "labels": { "fa": "پاک‌سازی مخزن" },
+      "labels": {
+        "fa": "پاک‌سازی مخزن"
+      },
       "domain": "Memory",
       "tier": "standard",
       "schedule": "20:00",
-      "days": ["thu"],
-      "allowedTools": ["Read", "Glob", "Grep"]
+      "days": [
+        "thu"
+      ],
+      "allowedTools": [
+        "Read",
+        "Glob",
+        "Grep"
+      ],
+      "checks": [
+        "The report is written in Persian.",
+        "It starts with a one-line health summary with a count per check.",
+        "Problems point to specific files or [[wikilinks]], not vague descriptions.",
+        "It ends with a prioritized list of suggested fixes.",
+        "It does not claim to have modified, moved or deleted any file."
+      ]
     },
     {
       "name": "morning-brief",
-      "labels": { "fa": "گزارش صبح" },
+      "labels": {
+        "fa": "گزارش صبح"
+      },
       "domain": "Productivity",
       "tier": "standard",
       "schedule": "08:00",
       "prompt": "Use the morning-brief skill. Today is {{date}}; today's daily note is {{dailyNote}}.",
       "allowedTools": [
-        "Read", "Glob", "Grep", "Write", "Edit",
+        "Read",
+        "Glob",
+        "Grep",
+        "Write",
+        "Edit",
         "mcp__claude_ai_Google_Calendar__list_calendars",
         "mcp__claude_ai_Google_Calendar__list_events",
         "mcp__claude_ai_Gmail__search_threads",
         "mcp__claude_ai_Gmail__get_thread"
+      ],
+      "checks": [
+        "The briefing is written in Persian.",
+        "It has sections for today's calendar, important emails, open loops and three focus items.",
+        "The three focus items are concrete actions, not generic advice.",
+        "It does not say any email was sent, drafted, archived or deleted."
       ]
     },
     {
       "name": "inbox-brief",
-      "labels": { "fa": "خلاصهٔ ایمیل" },
+      "labels": {
+        "fa": "خلاصهٔ ایمیل"
+      },
       "domain": "Productivity",
       "tier": "standard",
       "allowedTools": [
-        "Read", "Glob", "Write",
+        "Read",
+        "Glob",
+        "Write",
         "mcp__claude_ai_Gmail__search_threads",
         "mcp__claude_ai_Gmail__get_thread",
         "mcp__claude_ai_Gmail__get_message",
         "mcp__claude_ai_Gmail__create_draft"
+      ],
+      "checks": [
+        "The summary is written in Persian.",
+        "There is one line per thread with sender, subject, category and action taken.",
+        "It says drafts were created, never that anything was sent."
       ]
     },
     {
       "name": "weekly-review",
-      "labels": { "fa": "مرور هفتگی" },
+      "labels": {
+        "fa": "مرور هفتگی"
+      },
       "domain": "Productivity",
       "tier": "standard",
       "schedule": "20:30",
-      "days": ["fri"],
-      "allowedTools": ["Read", "Glob", "Grep", "Write", "Edit"]
+      "days": [
+        "fri"
+      ],
+      "allowedTools": [
+        "Read",
+        "Glob",
+        "Grep",
+        "Write",
+        "Edit"
+      ],
+      "checks": [
+        "The review is written in Persian.",
+        "It has sections for work done, decisions, learnings, open items and next week's focus.",
+        "Next week's focus has 3 to 5 concrete items."
+      ]
     },
     {
       "name": "deep-research",
-      "labels": { "fa": "تحقیق عمیق" },
+      "labels": {
+        "fa": "تحقیق عمیق"
+      },
       "domain": "Research",
       "tier": "standard",
       "prompt": "Use the deep-research skill on this topic:\n\n<topic here>",
       "timeoutMin": 30,
-      "allowedTools": ["WebSearch", "WebFetch", "Read", "Write", "Edit", "Glob", "Grep"]
+      "allowedTools": [
+        "WebSearch",
+        "WebFetch",
+        "Read",
+        "Write",
+        "Edit",
+        "Glob",
+        "Grep"
+      ],
+      "checks": [
+        "The answer is written in Persian.",
+        "It gives 5 to 10 findings and each finding names its source.",
+        "It lists open questions.",
+        "It lists the files that were written."
+      ]
     },
     {
       "name": "market-scan",
-      "labels": { "fa": "اسکن بازار" },
+      "labels": {
+        "fa": "اسکن بازار"
+      },
       "domain": "Trading",
       "tier": "standard",
-      "allowedTools": ["WebSearch", "WebFetch", "Read", "Write", "Glob"]
+      "allowedTools": [
+        "WebSearch",
+        "WebFetch",
+        "Read",
+        "Write",
+        "Glob"
+      ],
+      "checks": [
+        "The report is written in Persian.",
+        "Numbers come with a source or are marked as unverified.",
+        "It has a section for altBot.",
+        "It contains no buy or sell recommendation."
+      ]
     },
     {
       "name": "project-pulse",
-      "labels": { "fa": "وضعیت پروژه‌ها" },
+      "labels": {
+        "fa": "وضعیت پروژه‌ها"
+      },
       "domain": "Projects",
       "tier": "light",
-      "allowedTools": ["Read", "Glob", "Grep"]
+      "allowedTools": [
+        "Read",
+        "Glob",
+        "Grep"
+      ],
+      "checks": [
+        "The answer is written in Persian.",
+        "There is one line per project with status, last update and next action.",
+        "It ends with three priorities."
+      ]
     },
     {
       "name": "ingest-source",
-      "labels": { "fa": "ثبت منبع جدید" },
+      "labels": {
+        "fa": "ثبت منبع جدید"
+      },
       "domain": "Memory",
       "tier": "standard",
       "prompt": "Use the ingest-source skill for these new files in raw/:\n{{files}}",
-      "allowedTools": ["Read", "Write", "Edit", "Glob", "Grep"]
+      "allowedTools": [
+        "Read",
+        "Write",
+        "Edit",
+        "Glob",
+        "Grep"
+      ],
+      "checks": [
+        "The answer is written in Persian.",
+        "For each file it says what was created or updated, or why it was skipped.",
+        "It does not say any file in raw/ was edited, moved or deleted."
+      ]
     }
   ],
-  "quotaGuard": { "enabled": true, "fiveHourMax": 80, "weeklyMax": 90 },
+  "quotaGuard": {
+    "enabled": true,
+    "fiveHourMax": 80,
+    "weeklyMax": 90
+  },
   "telegram": {
     "enabled": false,
     "botToken": "",
     "chatId": "",
     "proxy": "",
-    "skills": ["morning-brief", "market-scan", "weekly-review"],
-    "notifyFailures": true
+    "skills": [
+      "morning-brief",
+      "market-scan",
+      "weekly-review"
+    ],
+    "notifyFailures": true,
+    "commands": true,
+    "sendCloudReports": false
   },
-  "inbox": { "folders": ["output", "raw/market", "raw/research"], "days": 14 },
+  "inbox": {
+    "folders": [
+      "output",
+      "raw/market",
+      "raw/research"
+    ],
+    "days": 14
+  },
   "watchers": [
-    { "skill": "ingest-source", "folder": "raw", "exclude": ["raw/market", "raw/research", "raw/assets"], "debounceSec": 90 }
+    {
+      "skill": "ingest-source",
+      "folder": "raw",
+      "exclude": [
+        "raw/market",
+        "raw/research",
+        "raw/assets"
+      ],
+      "debounceSec": 90
+    }
   ],
   "cloudRoutines": [],
   "cloudSync": {
     "enabled": false,
     "repo": "https://github.com/<you>/agentic-reports",
     "intervalMin": 15,
-    "branches": ["main"],
+    "branches": [
+      "main"
+    ],
     "copy": [
-      { "from": "reports/market", "to": "raw/market", "rename": "{name}-market-scan.md" },
-      { "from": "reports/brief", "to": "output/briefs", "rename": "{name}-morning-brief.md" }
+      {
+        "from": "reports/market",
+        "to": "raw/market",
+        "rename": "{name}-market-scan.md",
+        "skill": "market-scan"
+      },
+      {
+        "from": "reports/brief",
+        "to": "output/briefs",
+        "rename": "{name}-morning-brief.md",
+        "skill": "morning-brief"
+      }
+    ],
+    "gitName": "",
+    "gitEmail": ""
+  },
+  "integrations": [],
+  "quality": {
+    "model": "claude-haiku-4-5"
+  },
+  "quotaAlerts": {
+    "enabled": true,
+    "fiveHour": [
+      70,
+      90
+    ],
+    "weekly": [
+      75,
+      90
     ]
   },
-  "integrations": []
+  "remoteControl": {
+    "autoStart": false,
+    "name": "Agentic OS"
+  }
 }

@@ -30,6 +30,16 @@ const I18N = (() => {
       quotaBlocked: "Quota guard: {reason}", deferred: "DEFERRED · QUOTA", watch: "NEW FILE",
       windows: { "5-hour": "5-hour", weekly: "weekly" },
       kinds: { run: "RUN", output: "OUTPUT", "raw/market": "MARKET", "raw/research": "RESEARCH" },
+      telegram: "TELEGRAM", remote: "REMOTE CONTROL", newSkill: "+ NEW SKILL",
+      feedbackTitle: "FEEDBACK · {label}", feedbackHint: "What should be better next time? (optional for 👍)",
+      send: "SEND", feedbackSaved: "Feedback saved — the skill reads it on its next run",
+      qualityPass: "QUALITY ✓", qualityFail: "NEEDS REVIEW", qualityPending: "CHECKING QUALITY…",
+      sessionsTitle: "CLAUDE CODE SESSIONS", sessionsSearch: "Search conversations…", resume: "▸ RESUME", noSessions: "NO SESSIONS",
+      searchTitle: "SEARCH VAULT", searchPlaceholder: "Search notes…", noResults: "NO RESULTS",
+      builderTitle: "NEW SKILL", bName: "NAME (english, e.g. weekly-plan)", bLabel: "PERSIAN NAME", bDomain: "DOMAIN",
+      bDescription: "WHEN TO USE IT (one sentence)", bInstructions: "INSTRUCTIONS (what the skill should do)",
+      bSchedule: "TIME (optional, HH:MM)", bDays: "DAYS (none = every day)", bTier: "MODEL", bTools: "TOOLS",
+      create: "CREATE", created: "Skill created: {name}",
       dur: (d, h, m) => (d ? `${d}D ${h}H` : `${h}H ${String(m).padStart(2, "0")}M`),
       durShort: (d, h, m) => (d ? `${d}D ${h}H` : `${h}H ${String(m).padStart(2, "0")}M`),
       days: { sun: "SUN", mon: "MON", tue: "TUE", wed: "WED", thu: "THU", fri: "FRI", sat: "SAT" },
@@ -65,6 +75,16 @@ const I18N = (() => {
       quotaBlocked: "محافظ سهمیه: {reason}", deferred: "عقب افتاد · سهمیه", watch: "فایل جدید",
       windows: { "5-hour": "۵ ساعته", weekly: "هفتگی" },
       kinds: { run: "اجرا", output: "خروجی", "raw/market": "بازار", "raw/research": "تحقیق" },
+      telegram: "تلگرام", remote: "کنترل از گوشی", newSkill: "+ مهارت جدید",
+      feedbackTitle: "بازخورد · {label}", feedbackHint: "دفعهٔ بعد چه چیزی بهتر باشد؟ (برای 👍 اختیاری)",
+      send: "ارسال", feedbackSaved: "بازخورد ذخیره شد — مهارت در اجرای بعدی آن را می‌خواند",
+      qualityPass: "کیفیت ✓", qualityFail: "نیاز به بازبینی", qualityPending: "در حال بررسی کیفیت…",
+      sessionsTitle: "جلسه‌های Claude Code", sessionsSearch: "جست‌وجو در گفت‌وگوها…", resume: "▸ ادامه", noSessions: "جلسه‌ای نیست",
+      searchTitle: "جست‌وجو در مخزن", searchPlaceholder: "جست‌وجو در یادداشت‌ها…", noResults: "نتیجه‌ای نیست",
+      builderTitle: "مهارت جدید", bName: "نام انگلیسی (مثلاً weekly-plan)", bLabel: "نام فارسی", bDomain: "حوزه",
+      bDescription: "کاربرد (یک جمله: کِی استفاده شود)", bInstructions: "دستورالعمل (مهارت دقیقاً چه کند)",
+      bSchedule: "ساعت (اختیاری، HH:MM)", bDays: "روزها (هیچ‌کدام = هر روز)", bTier: "مدل", bTools: "ابزارها",
+      create: "ساختن", created: "مهارت ساخته شد: {name}",
       dur: (d, h, m) => (d ? `${d} روز و ${h} ساعت` : h ? `${h} ساعت و ${m} دقیقه` : `${m} دقیقه`),
       durShort: (d, h, m) => (d ? `${d} روز ${h} س` : `${h} س ${m} د`),
       days: { sun: "یکشنبه", mon: "دوشنبه", tue: "سه‌شنبه", wed: "چهارشنبه", thu: "پنجشنبه", fri: "جمعه", sat: "شنبه" },
@@ -91,6 +111,7 @@ const I18N = (() => {
     document.documentElement.dir = lang === "fa" ? "rtl" : "ltr";
     document.querySelectorAll("[data-i18n]").forEach((el) => (el.textContent = t(el.dataset.i18n)));
     document.querySelectorAll("[data-i18n-title]").forEach((el) => (el.title = t(el.dataset.i18nTitle)));
+    document.querySelectorAll("[data-i18n-ph]").forEach((el) => (el.placeholder = t(el.dataset.i18nPh)));
     document.querySelectorAll("[data-lang]").forEach((el) => el.setAttribute("aria-pressed", el.dataset.lang === lang));
   }
 

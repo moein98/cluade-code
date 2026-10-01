@@ -262,6 +262,45 @@ textarea:focus { outline: none; border-color: var(--orange-deep); }
 .duo + .block { margin-top: 44px; }
 .bottom + .duo { margin-top: 16px; }
 
+/* feedback and quality */
+.last-foot { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+.fbs { display: inline-flex; gap: 4px; margin-inline-end: 8px; }
+.fb {
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: 2px;
+  padding: 1px 6px; cursor: pointer; font-size: 12px; line-height: 1.5; opacity: .55; filter: grayscale(1);
+}
+.fb:hover, .fb.on { opacity: 1; filter: none; border-color: var(--orange-deep); }
+.qb { font-size: 10px; letter-spacing: .12em; color: var(--mute); border: 1px solid var(--line); border-radius: 2px; padding: 2px 6px; white-space: nowrap; }
+.qb.ok { color: var(--ok); border-color: #4a3d22; }
+.qb.bad { color: #e0786f; border-color: #5a2a26; }
+li.ib { grid-template-columns: 110px 1fr auto; }
+
+/* vault search and sessions */
+input.search, .form input, .form select {
+  width: 100%; margin-top: 12px; padding: 7px 10px;
+  background: #0b0b0b; color: var(--ink); border: 1px solid var(--line); border-radius: 2px;
+  font: 12px/1.4 var(--font);
+}
+input.search:focus, .form input:focus, .form select:focus { outline: none; border-color: var(--orange-deep); }
+.list-card li.hit, .list-card li.sess { height: auto; padding: 8px 0; align-items: start; }
+li.hit { display: flex !important; flex-direction: column; gap: 3px; cursor: pointer; }
+li.hit:hover .nm { color: var(--orange-2); }
+.snip { display: block; font-size: 10.5px; color: var(--mute); line-height: 1.5; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+li.sess { grid-template-columns: 110px 1fr auto !important; }
+.sbody { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.sbody .nm { text-transform: none; letter-spacing: .02em; font-weight: 500; }
+
+/* skill builder */
+.modal-box.wide { width: min(760px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; }
+.form { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; margin-top: 12px; }
+.form label, .form > div { display: flex; flex-direction: column; font-size: 10.5px; letter-spacing: .1em; color: var(--mute); }
+.form .full { grid-column: 1 / -1; }
+.form input, .form select { margin-top: 5px; }
+.form textarea { margin-top: 5px; }
+.flabel { margin-bottom: 5px; }
+.checks { display: flex; flex-wrap: wrap; gap: 6px 12px; }
+.chk { display: inline-flex !important; flex-direction: row !important; align-items: center; gap: 5px; color: var(--ink-2); font-size: 11px; cursor: pointer; }
+
 /* Persian (RTL). Letter-spacing breaks Persian letter joining, so it is off except for the Latin logo. */
 .brand { direction: ltr; }
 .chart { direction: ltr; }
@@ -283,6 +322,9 @@ html[lang="fa"] .skill { text-align: right; }
 html[lang="fa"] .list-card li { grid-template-columns: 130px 1fr auto; }
 html[lang="fa"] .link-btn, html[lang="fa"] .usage th, html[lang="fa"] .st.kind { font-size: 12px; }
 html[lang="fa"] .usage td.num { font-size: 12.5px; }
+html[lang="fa"] .qb, html[lang="fa"] .snip { font-size: 11.5px; }
+html[lang="fa"] .form label, html[lang="fa"] .form > div, html[lang="fa"] .chk { font-size: 12px; }
+html[lang="fa"] input.search { font-size: 13px; }
 
 @media (max-width: 1000px) {
   .tiles, .duo { grid-template-columns: 1fr; }

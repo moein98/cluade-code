@@ -32,6 +32,7 @@
     <button class="nb" data-open="runs"><i>¶</i><span data-i18n="runsFolder">RUNS FOLDER</span></button>
     <button class="nb" data-open="drafts"><i>※</i><span data-i18n="drafts">DRAFTS</span></button>
     <button class="nb" data-open="widget"><i>▣</i><span data-i18n="widget">WIDGET</span></button>
+    <button class="nb" data-open="remote"><i>◎</i><span data-i18n="remote">REMOTE CONTROL</span></button>
   </nav>
 
   <section class="tiles">
@@ -78,8 +79,24 @@
     </div>
   </section>
 
+  <section class="duo">
+    <div class="card list-card">
+      <div class="accent-lbl" data-i18n="searchTitle">SEARCH VAULT</div>
+      <input class="search" id="vault-q" type="search" data-i18n-ph="searchPlaceholder" placeholder="Search notes…" autocomplete="off">
+      <ul id="vault-results"></ul>
+    </div>
+    <div class="card list-card">
+      <div class="accent-lbl" data-i18n="sessionsTitle">CLAUDE CODE SESSIONS</div>
+      <input class="search" id="sess-q" type="search" data-i18n-ph="sessionsSearch" placeholder="Search conversations…" autocomplete="off">
+      <ul id="sessions"></ul>
+    </div>
+  </section>
+
   <section class="block">
-    <div class="block-head"><span class="accent-lbl" data-i18n="skills">SKILLS</span><span class="lbl" id="skills-note"></span></div>
+    <div class="block-head">
+      <span class="accent-lbl" data-i18n="skills">SKILLS</span>
+      <span><span class="lbl" id="skills-note"></span> <button class="link-btn" id="new-skill" data-i18n="newSkill">+ NEW SKILL</button></span>
+    </div>
     <div class="domains" id="skills"></div>
   </section>
 
@@ -107,6 +124,42 @@
     </div>
   </div>
 </div>
+<div class="modal" id="fb-modal" hidden>
+  <div class="card modal-box" role="dialog" aria-modal="true" aria-labelledby="fb-title">
+    <div class="lbl" id="fb-title"></div>
+    <div class="tiers" role="radiogroup" aria-label="Rating">
+      <button class="tier" role="radio" data-rating="up">👍</button>
+      <button class="tier" role="radio" data-rating="down">👎</button>
+    </div>
+    <textarea id="fb-note" rows="4" dir="auto" data-i18n-ph="feedbackHint"></textarea>
+    <div class="m-actions">
+      <button class="nb" data-close><span data-i18n="cancel">CANCEL</span></button>
+      <button class="nb primary" id="fb-send"><span data-i18n="send">SEND</span></button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="sb-modal" hidden>
+  <div class="card modal-box wide" role="dialog" aria-modal="true" aria-labelledby="sb-title">
+    <div class="lbl" id="sb-title" data-i18n="builderTitle">NEW SKILL</div>
+    <div class="form">
+      <label><span data-i18n="bName">NAME</span><input id="sb-name" dir="ltr" placeholder="weekly-plan" autocomplete="off"></label>
+      <label><span data-i18n="bLabel">PERSIAN NAME</span><input id="sb-label" dir="auto" autocomplete="off"></label>
+      <label><span data-i18n="bDomain">DOMAIN</span><select id="sb-domain"></select></label>
+      <label><span data-i18n="bTier">MODEL</span><select id="sb-tier"></select></label>
+      <label class="full"><span data-i18n="bDescription">WHEN TO USE</span><input id="sb-desc" dir="auto" autocomplete="off"></label>
+      <label class="full"><span data-i18n="bInstructions">INSTRUCTIONS</span><textarea id="sb-instr" rows="6" dir="auto"></textarea></label>
+      <label><span data-i18n="bSchedule">TIME</span><input id="sb-time" dir="ltr" placeholder="09:00" autocomplete="off"></label>
+      <div><span class="flabel" data-i18n="bDays">DAYS</span><div class="checks" id="sb-days"></div></div>
+      <div class="full"><span class="flabel" data-i18n="bTools">TOOLS</span><div class="checks" id="sb-tools"></div></div>
+    </div>
+    <div class="m-actions">
+      <button class="nb" data-close><span data-i18n="cancel">CANCEL</span></button>
+      <button class="nb primary" id="sb-create"><i>＋</i><span data-i18n="create">CREATE</span></button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast" hidden></div>
 <script src="/i18n.js"></script>
 <script src="/app.js"></script>

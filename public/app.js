@@ -58,6 +58,21 @@ const segs = (...parts) => parts.map((p) => `<bdi>${p}</bdi>`).join(" · ");
 const skillOf = (name) => (state ? state.skills.find((k) => k.name === name) : null);
 const labelOf = (name, fallback) => esc(I18N.skillLabel(skillOf(name), fallback));
 
+// Quality-check badge for a run (skills[].checks graded by a small model).
+function qualityBadge(r) {
+  const c = r && r.check;
+  if (!c) return "";
+  if (c.pending) return `<span class="qb">${t("qualityPending")}</span>`;
+  if (c.pass === true) return `<span class="qb ok">${t("qualityPass")}</span>`;
+  if (c.pass === false) return `<span class="qb bad" title="${esc((c.failed || []).join("\n"))}">⚠ ${t("qualityFail")}</span>`;
+  return "";
+}
+// 👍/👎 buttons; data-run or data-file says what the feedback is about.
+function fbButtons(target, label, given) {
+  const attr = `${target} data-label="${esc(label)}"`;
+  return `<span class="fbs"><button class="fb${given === "up" ? " on" : ""}" data-fb="up" ${attr} title="👍">👍</button><button class="fb${given === "down" ? " on" : ""}" data-fb="down" ${attr} title="👎">👎</button></span>`;
+}
+
 function tile(el, o) {
   // Live utilization from claude.ai when available; otherwise estimated from tokens.
   const pct = o.pct != null ? Math.min(100, o.pct) : o.limit ? Math.min(100, (o.used / o.limit) * 100) : 0;
@@ -217,9 +232,14 @@ function renderLast(s) {
   } else {
     stats = `<div class="stats">${segs(`$${(r.cost ?? 0).toFixed(4)}`, modelName(r.model), `${r.input ?? 0} ${t("in")}`, `${r.output ?? 0} ${t("out")}`)}</div>`;
   }
-  el.innerHTML = `<div class="lbl">${t("lastRun")} · ${labelOf(r.skill, r.label)}</div>
+  const label = I18N.skillLabel(skillOf(r.skill), r.label);
+  const foot =
+    r.status === "COMPLETE"
+      ? `<div class="last-foot">${qualityBadge(r)}${fbButtons(`data-run="${esc(r.id)}"`, label, r.feedback && r.feedback.rating)}</div>`
+      : "";
+  el.innerHTML = `<div class="lbl">${t("lastRun")} · ${esc(label)}</div>
     <div class="status ${cls}"><span>${t(r.status)}</span><span class="sdot"></span></div>
-    ${link}${stats}`;
+    ${link}${stats}${foot}`;
 }
 
 function renderRecent(runs) {
@@ -233,6 +253,7 @@ function renderRecent(runs) {
       const st =
         r.status === "RUNNING" ? `<span class="st run">●</span>`
         : r.status === "FAILED" ? `<span class="st bad">✕</span>`
+        : r.check && r.check.pass === false ? `<span class="st bad" title="${t("qualityFail")}">⚠</span>`
         : `<span class="st">✓</span>`;
       return `<li ${r.note ? `data-note="${esc(r.note)}"` : ""} title="${esc(r.error || t(r.status))} · ${modelName(r.model)}"><span class="tm">${hm(r.startedAt)}</span><span class="nm">${labelOf(r.skill, r.label)}</span>${st}</li>`;
     })
@@ -294,7 +315,13 @@ function renderInbox(box) {
     ? box.items
         .map((i) => {
           const title = i.kind === "run" ? labelOf(i.skill, i.title) : `<bdi>${esc(i.title)}</bdi>`;
-          return `<li data-note="${esc(i.file)}" title="${esc(i.file)}"><span class="tm">${I18N.when(i.at)}</span><span class="nm${i.kind === "run" ? "" : " file"}">${title}</span><span class="st kind">${esc(I18N.kind(i.kind))}</span></li>`;
+          const review = i.review ? ` <span class="qb bad">⚠ ${t("qualityFail")}</span>` : "";
+          const fb = i.run
+            ? fbButtons(`data-run="${esc(i.run)}"`, I18N.skillLabel(skillOf(i.skill), i.title))
+            : i.skill
+              ? fbButtons(`data-file="${esc(i.file)}"`, I18N.skillLabel(skillOf(i.skill), i.title))
+              : "";
+          return `<li class="ib" data-note="${esc(i.file)}" title="${esc(i.file)}"><span class="tm">${I18N.when(i.at)}</span><span class="nm${i.kind === "run" ? "" : " file"}">${title}${review}</span><span class="st kind">${fb}${esc(I18N.kind(i.kind))}</span></li>`;
         })
         .join("")
     : `<li class="empty">${t("inboxEmpty")}</li>`;
@@ -386,6 +413,7 @@ document.querySelectorAll("[data-open]").forEach((b) =>
 
 // Open notes in Obsidian (last run link, recent runs, vault changes)
 document.addEventListener("click", async (e) => {
+  if (e.target.closest("[data-fb], [data-resume]")) return; // handled below
   const n = e.target.closest("[data-note]");
   if (!n) return;
   e.preventDefault();
@@ -476,7 +504,156 @@ $("#m-run").addEventListener("click", async () => {
   }
 });
 
+const debounce = (fn, ms) => {
+  let h;
+  return (...a) => {
+    clearTimeout(h);
+    h = setTimeout(() => fn(...a), ms);
+  };
+};
+
+// Secondary dialogs (feedback, skill builder): close buttons, backdrop and Escape.
+document.querySelectorAll("[data-close]").forEach((b) => b.addEventListener("click", () => (b.closest(".modal").hidden = true)));
+document.querySelectorAll(".modal:not(#modal)").forEach((m) =>
+  m.addEventListener("click", (e) => {
+    if (e.target === m) m.hidden = true;
+  })
+);
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") document.querySelectorAll(".modal:not(#modal)").forEach((m) => (m.hidden = true));
+});
+
+// Feedback (learnings loop): 👍/👎 plus an optional note, saved to the skill's learnings.md.
+let fbTarget = null;
+let fbRating = null;
+const fbModal = $("#fb-modal");
+function setRating(r) {
+  fbRating = r;
+  fbModal.querySelectorAll("[data-rating]").forEach((b) => b.setAttribute("aria-checked", b.dataset.rating === r));
+}
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-fb]");
+  if (!b) return;
+  e.preventDefault();
+  fbTarget = b.dataset.run ? { run: b.dataset.run } : { file: b.dataset.file };
+  $("#fb-title").textContent = t("feedbackTitle", { label: b.dataset.label || "" });
+  $("#fb-note").value = "";
+  setRating(b.dataset.fb);
+  fbModal.hidden = false;
+  $("#fb-note").focus();
+});
+fbModal.addEventListener("click", (e) => {
+  const r = e.target.closest("[data-rating]");
+  if (r) setRating(r.dataset.rating);
+});
+$("#fb-send").addEventListener("click", async () => {
+  try {
+    await post("/api/feedback", { ...fbTarget, rating: fbRating, note: $("#fb-note").value });
+    fbModal.hidden = true;
+    toast(t("feedbackSaved"));
+    load();
+  } catch (e) {
+    toast(e.message, true);
+  }
+});
+
+// Vault search (BM25 over the notes).
+$("#vault-q").addEventListener(
+  "input",
+  debounce(async () => {
+    const q = $("#vault-q").value.trim();
+    const el = $("#vault-results");
+    if (!q) {
+      el.innerHTML = "";
+      return;
+    }
+    try {
+      const hits = await (await fetch(`/api/search?q=${encodeURIComponent(q)}`)).json();
+      el.innerHTML = hits.length
+        ? hits
+            .map((h) => `<li class="hit" data-note="${esc(h.file)}"><span class="nm file"><bdi>${esc(h.file)}</bdi></span><span class="snip" dir="auto">${esc(h.snippet)}</span></li>`)
+            .join("")
+        : `<li class="empty">${t("noResults")}</li>`;
+    } catch (e) {
+      toast(e.message, true);
+    }
+  }, 300)
+);
+
+// Claude Code sessions: recent list, full-text search, resume in a terminal.
+async function loadSessions() {
+  const q = $("#sess-q").value.trim();
+  try {
+    const list = await (await fetch(`/api/sessions${q ? `?q=${encodeURIComponent(q)}` : ""}`)).json();
+    $("#sessions").innerHTML = list.length
+      ? list
+          .slice(0, 12)
+          .map((s) => {
+            const proj = (s.cwd || "").split(/[\\/]/).filter(Boolean).pop() || "";
+            const meta = s.snippet
+              ? `<span class="snip" dir="auto">${esc(s.snippet)}</span>`
+              : `<span class="snip"><bdi>${esc(proj)}</bdi> · ${fmtTok(s.tokens)} · $${(s.cost || 0).toFixed(2)}</span>`;
+            return `<li class="sess"><span class="tm">${I18N.when(s.end)}</span><span class="sbody"><span class="nm" dir="auto">${esc(s.title || s.id)}</span>${meta}</span><button class="link-btn" data-resume="${esc(s.id)}">${t("resume")}</button></li>`;
+          })
+          .join("")
+      : `<li class="empty">${t("noSessions")}</li>`;
+  } catch (e) {
+    toast(e.message, true);
+  }
+}
+$("#sess-q").addEventListener("input", debounce(loadSessions, 400));
+document.addEventListener("click", async (e) => {
+  const b = e.target.closest("[data-resume]");
+  if (!b) return;
+  try {
+    await post("/api/open/resume", { session: b.dataset.resume });
+  } catch (err) {
+    toast(err.message, true);
+  }
+});
+
+// Skill builder: writes SKILL.md in the vault and a config.json entry.
+const BUILDER_TOOLS = ["Read", "Glob", "Grep", "Write", "Edit", "WebSearch", "WebFetch"];
+const DAY_KEYS = ["sat", "sun", "mon", "tue", "wed", "thu", "fri"];
+$("#new-skill").addEventListener("click", () => {
+  if (!state) return;
+  const domains = [...new Set([...state.domains, ...state.skills.map((k) => k.domain), "Other"])];
+  $("#sb-domain").innerHTML = domains.map((d) => `<option value="${esc(d)}">${esc(I18N.domain(d))}</option>`).join("");
+  $("#sb-tier").innerHTML = Object.entries(state.models)
+    .map(([k, id]) => `<option value="${esc(k)}"${k === "standard" ? " selected" : ""}>${esc(I18N.tier(k))} · ${modelName(id)}</option>`)
+    .join("");
+  $("#sb-days").innerHTML = DAY_KEYS.map((d) => `<label class="chk"><input type="checkbox" value="${d}">${esc(I18N.dayName(d))}</label>`).join("");
+  $("#sb-tools").innerHTML = BUILDER_TOOLS.map(
+    (x) => `<label class="chk"><input type="checkbox" value="${x}"${["Read", "Glob", "Grep"].includes(x) ? " checked" : ""}>${x}</label>`
+  ).join("");
+  for (const id of ["sb-name", "sb-label", "sb-desc", "sb-instr", "sb-time"]) $(`#${id}`).value = "";
+  $("#sb-modal").hidden = false;
+  $("#sb-name").focus();
+});
+$("#sb-create").addEventListener("click", async () => {
+  const checked = (sel) => [...document.querySelectorAll(`${sel} input:checked`)].map((i) => i.value);
+  try {
+    const r = await post("/api/skills", {
+      name: $("#sb-name").value.trim(),
+      label: $("#sb-label").value.trim(),
+      domain: $("#sb-domain").value,
+      tier: $("#sb-tier").value,
+      description: $("#sb-desc").value,
+      instructions: $("#sb-instr").value,
+      schedule: $("#sb-time").value.trim(),
+      days: checked("#sb-days"),
+      tools: checked("#sb-tools"),
+    });
+    $("#sb-modal").hidden = true;
+    toast(t("created", { name: r.name }));
+    load();
+  } catch (e) {
+    toast(e.message, true);
+  }
+});
+
 window.addEventListener("resize", () => state && renderChart(state.activity));
 window.addEventListener("hashchange", openFromHash);
 I18N.set(document.documentElement.lang || "en");
 load();
+loadSessions();

@@ -191,7 +191,7 @@ const STR = {
     confirm: "Run {label}?", detail: "{model} · headless claude -p in the vault. This uses plan usage.",
     complete: "complete", failed: "failed", tokensOut: "tokens out", offline: "dashboard offline",
     week: "Week", runs: "Runs", inbox: "Inbox",
-    quota: "Quota guard", runAnyway: "Run anyway",
+    quota: "Quota guard", runAnyway: "Run anyway", remote: "Remote Control (phone)",
   },
   fa: {
     open: "باز کردن داشبورد", widget: "ویجت", runSkill: "اجرای مهارت", running: "در حال اجرا",
@@ -199,7 +199,7 @@ const STR = {
     confirm: "«{label}» اجرا شود؟", detail: "{model} · اجرای پس‌زمینه با claude -p در مخزن. از سهمیهٔ پلن مصرف می‌کند.",
     complete: "انجام شد", failed: "ناموفق", tokensOut: "توکن خروجی", offline: "داشبورد در دسترس نیست",
     week: "هفته", runs: "اجرا", inbox: "صندوق",
-    quota: "محافظ سهمیه", runAnyway: "باز هم اجرا کن",
+    quota: "محافظ سهمیه", runAnyway: "باز هم اجرا کن", remote: "کنترل از گوشی (Remote Control)",
   },
 };
 function L(key, vars) {
@@ -262,6 +262,7 @@ function refreshTray() {
     Menu.buildFromTemplate([
       { label: L("open"), click: showMain },
       { label: L("widget"), type: "checkbox", checked: !!(widgetWin && widgetWin.isVisible()), click: () => toggleWidget() },
+      { label: L("remote"), click: () => api("/api/open/remote", {}).catch((e) => dialog.showErrorBox("Agentic OS", e.message)) },
       { type: "separator" },
       {
         label: L("runSkill"),

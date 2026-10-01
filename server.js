@@ -11,6 +11,10 @@ const { createCloudSync } = require("./lib/cloudsync");
 const { createTelegram } = require("./lib/telegram");
 const { createInbox } = require("./lib/inbox");
 const { createWatchers } = require("./lib/watcher");
+const { createLearnings } = require("./lib/learnings");
+const { createQuality } = require("./lib/quality");
+const { createSearch } = require("./lib/search");
+const { createSessions } = require("./lib/sessions");
 const limits = require("./lib/limits");
 
 const ROOT = __dirname;
@@ -28,6 +32,96 @@ let inbox;
 let watchers;
 let hooks = {};
 const DAY = 24 * 3600e3;
+const learnings = createLearnings(cfg);
+const quality = createQuality(cfg, DATA);
+const vaultSearch = createSearch(vault, { skipDirs: [cfg.vault.runsFolder] });
+const sessions = createSessions(usage.costOf, [DATA]); // quality checks run in data/
+
+// Which skill produced a vault file: a run note, or a cloud report copied by a cloudSync rule.
+function skillForFile(rel) {
+  const run = runner.list().find((r) => r.note === rel);
+  if (run) return run.skill;
+  const rule = ((cfg.cloudSync || {}).copy || []).find((c) => rel.startsWith(`${c.to}/`));
+  return rule ? rule.skill : null;
+}
+
+// 👍/👎 on an output: saved on the run and appended to the skill's learnings.md. Cloud skills
+// read their learnings from the reports repo, so those get pushed there too.
+function giveFeedback(body) {
+  const rating = body.rating === "up" || body.rating === "down" ? body.rating : null;
+  if (!rating) throw new Error("rating must be up or down");
+  const note = String(body.note || "").slice(0, 500);
+  let skill;
+  let source;
+  if (body.run) {
+    const r = runner.updateRun(String(body.run), { feedback: { rating, note, at: new Date().toISOString() } });
+    skill = r.skill;
+    source = r.note;
+  } else if (body.file) {
+    source = String(body.file);
+    skill = skillForFile(source);
+  }
+  if (!skill) throw new Error("no skill is linked to this item");
+  const content = learnings.add(skill, { rating, note, source });
+  if (source) inbox.markRead(source);
+  if ((cfg.cloudRoutines || []).some((r) => r.skill === skill) && (cfg.cloudSync || {}).repo) {
+    cloudSync
+      .pushFile(`learnings/${skill}.md`, content, `learnings: ${skill}`)
+      .then((pushed) => pushed && console.log(`[learnings] pushed ${skill} to the reports repo`))
+      .catch((e) => console.log(`[learnings] push failed: ${e.message}`));
+  }
+  return { ok: true, skill };
+}
+
+// Grade a finished run against its skill's checks (config skills[].checks) with a small model.
+function checkQuality(run, skill, result) {
+  if (run.status !== "COMPLETE" || !(skill.checks || []).length || quotaGuard().blocked) return;
+  runner.updateRun(run.id, { check: { pending: true } });
+  quality.evaluate(skill, result).then((check) => {
+    runner.updateRun(run.id, { check });
+    console.log(`[quality] ${skill.name}: ${check.pass === true ? "pass" : check.pass === false ? "FAIL" : "unknown"}`);
+    if (check.pass === false) {
+      telegram.send(`⚠️ ${labelFor(skill.name, skill.label)} — ${uiSettings().language === "fa" ? "کیفیت قبول نشد" : "quality check failed"}\n${check.failed.join("\n")}`);
+    }
+  });
+}
+
+// Telegram alert when live plan usage crosses a threshold (once per window and threshold).
+const ALERTS_FILE = path.join(DATA, "alerts.json");
+function checkQuotaAlerts() {
+  const a = cfg.quotaAlerts || {};
+  if (!a.enabled || !telegram) return;
+  const live = limits.live();
+  let sent = {};
+  try {
+    sent = JSON.parse(fs.readFileSync(ALERTS_FILE, "utf8"));
+  } catch {}
+  const fa = uiSettings().language === "fa";
+  let changed = false;
+  for (const [key, win, thresholds, nameFa, nameEn] of [
+    ["5h", live.fiveHour, a.fiveHour || [70, 90], "۵ ساعته", "5-hour"],
+    ["week", live.weekly, a.weekly || [75, 90], "هفتگی", "weekly"],
+  ]) {
+    if (!win) continue;
+    for (const th of thresholds) {
+      const id = `${key}:${win.resetsAt}:${th}`;
+      if (win.pct < th || sent[id]) continue;
+      sent[id] = Date.now();
+      changed = true;
+      const r = new Date(win.resetsAt);
+      const when = key === "week" ? `${dayKey(r)} ${pad(r.getHours())}:${pad(r.getMinutes())}` : `${pad(r.getHours())}:${pad(r.getMinutes())}`;
+      telegram.send(
+        fa
+          ? `⚠️ مصرف ${nameFa} Claude به ${Math.round(win.pct)}٪ رسید (هشدار ${th}٪). ریست: ${when}`
+          : `⚠️ Claude ${nameEn} usage is at ${Math.round(win.pct)}% (alert ${th}%). Resets ${when}`
+      );
+    }
+  }
+  if (changed) {
+    for (const [k, v] of Object.entries(sent)) if (v < Date.now() - 8 * DAY) delete sent[k];
+    fs.writeFileSync(ALERTS_FILE, JSON.stringify(sent, null, 1));
+  }
+}
 
 const STATIC = {
   "/": ["index.html", "text/html; charset=utf-8"],
@@ -233,10 +327,99 @@ function insideVault(rel) {
   return abs;
 }
 
-function openTerminal() {
+// A terminal running `claude <args>` in dir (Windows Terminal when available, else cmd).
+function openTerminal(dir = vault, args = [], { title = "Claude Code", minimized = false } = {}) {
   const wt = path.join(process.env.LOCALAPPDATA || "", "Microsoft", "WindowsApps", "wt.exe");
-  if (cfg.terminal !== "cmd" && fs.existsSync(wt)) return detached(wt, ["-d", vault, "claude"]);
-  detached("cmd.exe", ["/c", "start", "Claude Code", "/D", vault, "cmd", "/k", "claude"]);
+  if (!minimized && cfg.terminal !== "cmd" && fs.existsSync(wt)) return detached(wt, ["-d", dir, "claude", ...args]);
+  detached("cmd.exe", ["/c", "start", title, ...(minimized ? ["/min"] : []), "/D", dir, "cmd", "/k", "claude", ...args]);
+}
+
+// Remote Control server: start or continue Claude Code sessions in the vault from the phone app.
+function openRemoteControl(minimized = false) {
+  const name = (cfg.remoteControl && cfg.remoteControl.name) || "Agentic OS";
+  openTerminal(vault, ["remote-control", "--name", name], { title: "Remote Control", minimized });
+}
+
+// Skill builder: SKILL.md in the vault plus a config.json entry, live without a restart.
+const BUILDER_TOOLS = ["Read", "Glob", "Grep", "Write", "Edit", "WebSearch", "WebFetch"];
+function createSkill(b) {
+  const name = String(b.name || "").trim();
+  if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(name) || name.length > 40) throw new Error("name: lowercase letters, digits and dashes, e.g. weekly-plan");
+  const dir = path.join(vault, ".claude", "skills", name);
+  if (fs.existsSync(dir) || (cfg.skills || []).some((s) => s.name === name)) throw new Error(`skill already exists: ${name}`);
+  const description = String(b.description || "").replace(/\s+/g, " ").trim();
+  const instructions = String(b.instructions || "").trim();
+  if (description.length < 10) throw new Error("description is too short");
+  if (instructions.length < 10) throw new Error("instructions are too short");
+  const schedule = String(b.schedule || "").trim();
+  if (schedule && !/^([01]\d|2[0-3]):[0-5]\d$/.test(schedule)) throw new Error("time must be HH:MM");
+  const days = (Array.isArray(b.days) ? b.days : []).filter((d) => ["sat", "sun", "mon", "tue", "wed", "thu", "fri"].includes(d));
+  const tools = (Array.isArray(b.tools) ? b.tools : []).filter((x) => BUILDER_TOOLS.includes(x));
+  const tier = Object.keys(cfg.models || {}).includes(b.tier) ? b.tier : cfg.defaultTier || "standard";
+
+  fs.mkdirSync(dir, { recursive: true });
+  const title = name.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  fs.writeFileSync(
+    path.join(dir, "SKILL.md"),
+    `---\nname: ${name}\ndescription: ${description.replace(/\n/g, " ")}\n---\n\n# ${title}\n\n${instructions}\n`,
+    "utf8"
+  );
+  const entry = {
+    name,
+    ...(b.label ? { labels: { fa: String(b.label).trim().slice(0, 40) } } : {}),
+    domain: String(b.domain || "Other").trim().slice(0, 30) || "Other",
+    tier,
+    ...(schedule ? { schedule } : {}),
+    ...(schedule && days.length && days.length < 7 ? { days } : {}),
+    allowedTools: tools.length ? tools : ["Read", "Glob", "Grep"],
+  };
+  cfg.skills = [...(cfg.skills || []), entry];
+  fs.writeFileSync(path.join(ROOT, "config.json"), JSON.stringify(cfg, null, 2) + "\n", "utf8");
+  return entry;
+}
+
+// Telegram bot commands (only from the configured chat).
+async function onTelegramCommand(text) {
+  const [raw, ...args] = text.split(/\s+/);
+  const cmd = raw.toLowerCase().replace(/@\S+$/, "");
+  const fa = uiSettings().language === "fa";
+  const L = (f, e) => (fa ? f : e);
+  const help = L(
+    "دستورها:\n/status — مصرف، آخرین اجرا، صندوق\n/run <مهارت> — اجرای مهارت (با force از محافظ سهمیه رد می‌شود)\n/skills — فهرست مهارت‌ها\n/inbox — موارد تازه",
+    "Commands:\n/status — usage, last run, inbox\n/run <skill> — run a skill (add force to bypass the quota guard)\n/skills — list skills\n/inbox — new items"
+  );
+  if (cmd === "/start" || cmd === "/help") return help;
+  const s = state();
+  if (cmd === "/status") {
+    const pct = (x) => (x.pct != null ? `${Math.round(x.pct)}%` : "—");
+    const last = s.lastRun ? `${labelFor(s.lastRun.skill, s.lastRun.label)} · ${s.lastRun.status}` : "—";
+    const next = s.upcoming[0] ? `${labelFor(s.upcoming[0].skill, s.upcoming[0].label)} ${new Date(s.upcoming[0].at).toTimeString().slice(0, 5)}` : "—";
+    return L(
+      `📊 مصرف ۵ ساعته: ${pct(s.fiveHour)} · هفتگی: ${pct(s.weekly)}\nاجرای امروز: ${s.routines.runsToday}\nآخرین اجرا: ${last}\nبعدی: ${next}\nصندوق: ${s.inbox.count} مورد تازه`,
+      `📊 5-hour: ${pct(s.fiveHour)} · weekly: ${pct(s.weekly)}\nRuns today: ${s.routines.runsToday}\nLast run: ${last}\nNext: ${next}\nInbox: ${s.inbox.count} new`
+    );
+  }
+  if (cmd === "/skills") return s.skills.map((k) => `• ${k.name} — ${labelFor(k.name, k.label)}`).join("\n");
+  if (cmd === "/inbox") {
+    return s.inbox.items.length
+      ? s.inbox.items.slice(0, 8).map((i) => `• ${i.kind === "run" ? labelFor(i.skill, i.title) : i.title}`).join("\n")
+      : L("چیز تازه‌ای نیست.", "Nothing new.");
+  }
+  if (cmd === "/run") {
+    const name = args[0];
+    if (!name) return L("اسم مهارت را بنویس، مثلاً /run vault-cleanup", "Name a skill, e.g. /run vault-cleanup");
+    const skill = s.skills.find((k) => k.name === name);
+    if (!skill) return L(`مهارت «${name}» نیست. /skills`, `No skill "${name}". /skills`);
+    if (skill.prompt.includes("<topic here>")) return L("این مهارت موضوع لازم دارد؛ از داشبورد اجرا کن.", "This skill needs a topic; run it from the dashboard.");
+    try {
+      runner.start(name, "telegram", undefined, undefined, { force: args[1] === "force" });
+      return L(`▶️ ${labelFor(name)} شروع شد. نتیجه همین‌جا می‌آید.`, `▶️ ${labelFor(name)} started. The result will come here.`);
+    } catch (e) {
+      if (e.code === "QUOTA") return L(`⛔ محافظ سهمیه: ${e.message}\nبرای اجرای اجباری: /run ${name} force`, `⛔ Quota guard: ${e.message}\nTo force: /run ${name} force`);
+      throw e;
+    }
+  }
+  return help;
 }
 
 function openTarget(what, body) {
@@ -244,6 +427,17 @@ function openTarget(what, body) {
     case "claude":
       openTerminal();
       break;
+    case "remote":
+      openRemoteControl();
+      break;
+    case "resume": {
+      const id = String(body.session || "");
+      if (!/^[0-9a-f-]{36}$/.test(id)) throw new Error("bad session id");
+      const s = sessions.find(id);
+      if (!s) throw new Error("session not found");
+      openTerminal(s.cwd && fs.existsSync(s.cwd) ? s.cwd : vault, ["--resume", id], { title: "Claude Code — resume" });
+      break;
+    }
     case "vault":
       detached("explorer.exe", [obsidianUri()]);
       break;
@@ -310,6 +504,13 @@ const server = http.createServer(async (req, res) => {
   if (req.method === "GET") {
     const st = STATIC[url.pathname];
     if (st) return send(res, 200, fs.readFileSync(path.join(ROOT, "public", st[0])), st[1]);
+    const q = url.searchParams.get("q") || "";
+    try {
+      if (url.pathname === "/api/sessions") return send(res, 200, q ? sessions.search(q) : sessions.list(30));
+      if (url.pathname === "/api/search") return send(res, 200, vaultSearch.search(q, 12));
+    } catch (e) {
+      return send(res, 500, { error: e.message });
+    }
     if (url.pathname === "/api/state") {
       try {
         return send(res, 200, state());
@@ -332,6 +533,8 @@ const server = http.createServer(async (req, res) => {
       }
       if ((m = /^\/api\/open\/(\w+)$/.exec(url.pathname))) return send(res, 200, openTarget(m[1], body));
       if (url.pathname === "/api/settings") return send(res, 200, saveUiSettings(body));
+      if (url.pathname === "/api/feedback") return send(res, 200, giveFeedback(body));
+      if (url.pathname === "/api/skills") return send(res, 200, createSkill(body));
       if (url.pathname === "/api/inbox/read") {
         if (body.all === true) inbox.markAll();
         else inbox.markRead(String(body.file || ""));
@@ -371,9 +574,16 @@ function start(options = {}) {
       telegram = createTelegram(cfg, DATA);
       runner = createRunner(cfg, DATA, {
         guard: quotaGuard,
-        onFinish: (run, skill, result) => telegram.onRun(run, labelFor(skill.name, skill.label), result),
+        onFinish: (run, skill, result) => {
+          telegram.onRun(run, labelFor(skill.name, skill.label), result);
+          checkQuality(run, skill, result);
+        },
       });
-      inbox = createInbox(cfg, DATA, () => runner.list());
+      inbox = createInbox(cfg, DATA, () => runner.list(), (rel) => skillForFile(rel));
+      telegram.startCommands(onTelegramCommand);
+      setInterval(checkQuotaAlerts, 2 * 60e3);
+      setTimeout(checkQuotaAlerts, 20e3);
+      if (cfg.remoteControl && cfg.remoteControl.autoStart) setTimeout(() => openRemoteControl(true), 8e3);
       watchers = createWatchers(cfg, DATA, runner);
       integrations = createIntegrations(cfg);
       cloudSync = createCloudSync(cfg, ROOT, {
