@@ -1,5 +1,5 @@
 // Agentic OS — local command center for Claude Code + the Obsidian vault.
-// Zero dependencies: node server.js [--open]
+// Zero dependencies: node server.js [--open]. The Electron app (electron/main.js) calls start() in-process.
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
@@ -15,14 +15,18 @@ const cfg = JSON.parse(fs.readFileSync(cfgFile, "utf8"));
 const DATA = path.join(ROOT, "data");
 fs.mkdirSync(DATA, { recursive: true });
 const vault = cfg.vault.path;
-const runner = createRunner(cfg, DATA);
-const integrations = createIntegrations(cfg);
-const cloudSync = createCloudSync(cfg, ROOT);
+// Created only once this process owns the port, so a second instance never runs a second scheduler.
+let runner;
+let integrations;
+let cloudSync;
+let hooks = {};
 
 const STATIC = {
   "/": ["index.html", "text/html; charset=utf-8"],
   "/app.css": ["app.css", "text/css; charset=utf-8"],
   "/app.js": ["app.js", "text/javascript; charset=utf-8"],
+  "/widget": ["widget.html", "text/html; charset=utf-8"],
+  "/widget.js": ["widget.js", "text/javascript; charset=utf-8"],
   "/robot.svg": ["robot.svg", "image/svg+xml"],
 };
 
@@ -147,7 +151,9 @@ function openTarget(what, body) {
       detached("explorer.exe", [obsidianUri()]);
       break;
     case "widget":
-      detached("wscript.exe", [path.join(ROOT, "widget.vbs")]);
+      // Inside the desktop app, toggle its widget window; otherwise launch the PowerShell widget.
+      if (hooks.toggleWidget) hooks.toggleWidget();
+      else detached("wscript.exe", [path.join(ROOT, "widget.vbs")]);
       break;
     case "daily": {
       const rel = path.posix.join(cfg.vault.dailyFolder || "", `${dayKey(new Date())}.md`);
@@ -238,16 +244,32 @@ const server = http.createServer(async (req, res) => {
   send(res, 404, { error: "not found" });
 });
 
-server.on("error", (e) => {
-  if (e.code !== "EADDRINUSE") throw e;
-  // Already running (e.g. started at login): just open the existing dashboard.
-  console.log(`Agentic OS is already running on port ${cfg.port}`);
-  if (process.argv.includes("--open")) detached("explorer.exe", [`http://127.0.0.1:${cfg.port}`]);
-  setTimeout(() => process.exit(0), 500);
-});
-
-server.listen(cfg.port, "127.0.0.1", () => {
+// Resolves with { url, alreadyRunning }. When another process already serves the port,
+// nothing is started here and callers just use that instance.
+function start(options = {}) {
+  hooks = options.hooks || {};
   const url = `http://127.0.0.1:${cfg.port}`;
-  console.log(`Agentic OS running at ${url}`);
-  if (process.argv.includes("--open")) detached("explorer.exe", [url]);
-});
+  return new Promise((resolve, reject) => {
+    server.once("error", (e) => {
+      if (e.code !== "EADDRINUSE") return reject(e);
+      console.log(`Agentic OS is already running on port ${cfg.port}`);
+      resolve({ url, alreadyRunning: true });
+    });
+    server.listen(cfg.port, "127.0.0.1", () => {
+      runner = createRunner(cfg, DATA);
+      integrations = createIntegrations(cfg);
+      cloudSync = createCloudSync(cfg, ROOT);
+      console.log(`Agentic OS running at ${url}`);
+      resolve({ url, alreadyRunning: false });
+    });
+  });
+}
+
+module.exports = { start, config: cfg, root: ROOT };
+
+if (require.main === module) {
+  start().then(({ url, alreadyRunning }) => {
+    if (process.argv.includes("--open")) detached("explorer.exe", [url]);
+    if (alreadyRunning) setTimeout(() => process.exit(0), 500);
+  });
+}

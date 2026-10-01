@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Agentic OS Widget</title>
+<link rel="icon" href="/robot.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/app.css">
+<style>
+  html, body.widget { background: transparent; }
+  body.widget { margin: 0; padding: 0; overflow: hidden; user-select: none; }
+  .w-card {
+    width: 340px; padding: 12px 14px 14px;
+    background: rgba(20, 20, 20, .95); border: 1px solid var(--line); border-radius: 4px;
+  }
+  .w-head { display: flex; align-items: center; gap: 10px; -webkit-app-region: drag; }
+  .w-head img { width: 16px; height: 20px; image-rendering: pixelated; }
+  .w-title { flex: 1; font-size: 17px; font-weight: 700; letter-spacing: .1em; }
+  .w-title .a { color: #c9c6c0; }
+  .w-title .o { color: var(--orange); }
+  .w-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--dim); }
+  .w-dot.ok { background: var(--ok); }
+  .w-dot.bad { background: var(--err); }
+  .w-icon {
+    -webkit-app-region: no-drag;
+    background: none; border: 0; padding: 0 4px; cursor: pointer;
+    color: var(--mute); font: 14px/1 var(--font);
+  }
+  .w-icon:hover { color: var(--ink); }
+  .w-tiles { margin-top: 14px; }
+  .w-tiles .tile { padding: 0; min-height: 0; margin-bottom: 12px; border: 0; background: none; }
+  .w-tiles .meter { margin: 7px 0 7px; height: 9px; }
+  .w-tiles .val { font-size: 13px; }
+  .w-sep { border-top: 1px solid #242424; margin: 2px 0 12px; }
+  .w-last {
+    background: var(--panel-2); border: 1px solid var(--line); border-radius: 2px;
+    padding: 8px 10px; cursor: pointer;
+  }
+  .w-last:hover { border-color: var(--orange-deep); }
+  .w-last .status { margin: 5px 0 3px; font-size: 18px; gap: 10px; }
+  .w-last .status .sdot { width: 6px; height: 6px; }
+  .w-last .stats { margin-top: 0; font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .w-next { margin-top: 10px; font-size: 10px; color: var(--mute); letter-spacing: .08em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .w-next.err { color: #e0786f; }
+  .w-skills { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: 6px; }
+  .w-skill {
+    background: var(--panel-2); border: 1px solid var(--line); border-radius: 2px;
+    padding: 7px 8px; text-align: left; cursor: pointer;
+    color: var(--ink-2); font: 600 10px/1.2 var(--font); letter-spacing: .06em;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .w-skill:hover { border-color: var(--orange-deep); }
+  .w-skill i { font-style: normal; color: var(--orange); }
+  .w-skill.armed { color: var(--orange); border-color: var(--orange); }
+  .w-skill.running i { animation: pulse 1.1s ease-in-out infinite; }
+  .w-offline { margin-top: 14px; }
+  .w-offline b { font-size: 15px; }
+  .w-offline p { color: var(--mute); font-size: 10px; margin: 4px 0 0; }
+</style>
+</head>
+<body class="widget">
+<div class="w-card" id="card">
+  <header class="w-head">
+    <img src="/robot.svg" alt="">
+    <span class="w-title"><span class="a">AGENTIC</span><span class="o">OS</span></span>
+    <span class="w-dot" id="online"></span>
+    <button class="w-icon" id="w-open" title="Open dashboard">↗</button>
+    <button class="w-icon" id="w-close" title="Hide widget">×</button>
+  </header>
+  <div id="body">
+    <div class="w-tiles">
+      <div class="tile" id="t-5h"></div>
+      <div class="tile" id="t-week"></div>
+      <div class="tile" id="t-routines"></div>
+    </div>
+    <div class="w-sep"></div>
+    <div class="w-last" id="last"></div>
+    <div class="w-next" id="next"></div>
+    <div class="accent-lbl" style="margin-top:14px">SKILLS</div>
+    <div class="w-skills" id="skills"></div>
+  </div>
+  <div class="w-offline" id="offline" hidden>
+    <b>DASHBOARD OFFLINE</b>
+    <p>The Agentic OS server is not reachable.</p>
+  </div>
+</div>
+<script src="/widget.js"></script>
+</body>
+</html>

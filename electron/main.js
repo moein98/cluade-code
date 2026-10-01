@@ -1,0 +1,317 @@
+// Agentic OS desktop app: dashboard window, floating widget, tray menu and run notifications.
+// Runs the dashboard server in-process (or attaches to one that is already running).
+const { app, BrowserWindow, Tray, Menu, Notification, nativeImage, ipcMain, shell, nativeTheme, dialog, screen } =
+  require("electron");
+const path = require("path");
+const fs = require("fs");
+const server = require("../server");
+
+const PREFS_FILE = path.join(server.root, "data", "desktop.json");
+const WIDGET_WIDTH = 340;
+
+let prefs = { widgetVisible: true, widgetPos: null };
+try {
+  prefs = { ...prefs, ...JSON.parse(fs.readFileSync(PREFS_FILE, "utf8")) };
+} catch {}
+const savePrefs = () => {
+  fs.mkdirSync(path.dirname(PREFS_FILE), { recursive: true });
+  fs.writeFileSync(PREFS_FILE, JSON.stringify(prefs, null, 1));
+};
+
+let baseUrl;
+let mainWin = null;
+let widgetWin = null;
+let tray = null;
+let quitting = false;
+let lastState = null;
+const seenStatus = new Map(); // run id -> status, to notify on RUNNING -> done
+
+// Same pixel robot as public/robot.svg, drawn into a BGRA bitmap (tray icons can't be SVG).
+function robotIcon(scale) {
+  const rects = [
+    [3, 0, 2, 1, "#C2552F"], [1, 1, 6, 3, "#C2552F"], [2, 4, 4, 1, "#C2552F"], [0, 5, 8, 1, "#C2552F"],
+    [0, 6, 1, 1, "#C2552F"], [7, 6, 1, 1, "#C2552F"], [2, 6, 4, 2, "#9A4024"], [2, 8, 1, 2, "#9A4024"],
+    [5, 8, 1, 2, "#9A4024"], [2, 2, 1, 1, "#161616"], [5, 2, 1, 1, "#161616"], [3, 3, 2, 1, "#7D3219"],
+  ];
+  const size = 10 * scale;
+  const offX = Math.floor((size - 8 * scale) / 2);
+  const buf = Buffer.alloc(size * size * 4);
+  for (const [x, y, w, h, hex] of rects) {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    for (let py = y * scale; py < (y + h) * scale; py++) {
+      for (let px = offX + x * scale; px < offX + (x + w) * scale; px++) {
+        const i = (py * size + px) * 4;
+        buf[i] = b;
+        buf[i + 1] = g;
+        buf[i + 2] = r;
+        buf[i + 3] = 255;
+      }
+    }
+  }
+  return nativeImage.createFromBitmap(buf, { width: size, height: size });
+}
+
+const webPreferences = {
+  contextIsolation: true,
+  nodeIntegration: false,
+  sandbox: true,
+  preload: path.join(__dirname, "preload.js"),
+};
+
+// Keep every window on the dashboard origin; other http(s) links open in the default browser.
+function lockNavigation(win) {
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (url === baseUrl || url.startsWith(baseUrl + "/")) showMain();
+    else if (/^https?:\/\//.test(url)) shell.openExternal(url);
+    return { action: "deny" };
+  });
+  win.webContents.on("will-navigate", (e, url) => {
+    if (!url.startsWith(baseUrl)) e.preventDefault();
+  });
+}
+
+function showMain() {
+  if (!mainWin) {
+    mainWin = new BrowserWindow({
+      width: 1560,
+      height: 1000,
+      minWidth: 900,
+      minHeight: 600,
+      title: "Agentic OS",
+      icon: robotIcon(6),
+      backgroundColor: "#0e0e0e",
+      autoHideMenuBar: true,
+      show: false,
+      webPreferences,
+    });
+    lockNavigation(mainWin);
+    mainWin.loadURL(baseUrl);
+    mainWin.once("ready-to-show", () => mainWin.show());
+    // Closing hides to the tray so the scheduler keeps running.
+    mainWin.on("close", (e) => {
+      if (!quitting) {
+        e.preventDefault();
+        mainWin.hide();
+      }
+    });
+    mainWin.on("closed", () => (mainWin = null));
+    return;
+  }
+  if (mainWin.isMinimized()) mainWin.restore();
+  mainWin.show();
+  mainWin.focus();
+}
+
+function widgetPosition() {
+  const p = prefs.widgetPos;
+  if (p) {
+    const d = screen.getDisplayMatching({ x: p.x, y: p.y, width: WIDGET_WIDTH, height: 100 });
+    const a = d.workArea;
+    if (p.x >= a.x - 20 && p.x <= a.x + a.width - 60 && p.y >= a.y - 20 && p.y <= a.y + a.height - 60) return p;
+  }
+  const a = screen.getPrimaryDisplay().workArea;
+  return { x: a.x + a.width - WIDGET_WIDTH - 24, y: a.y + 24 };
+}
+
+function createWidget() {
+  const pos = widgetPosition();
+  widgetWin = new BrowserWindow({
+    x: pos.x,
+    y: pos.y,
+    width: WIDGET_WIDTH,
+    height: 560,
+    frame: false,
+    transparent: true,
+    resizable: false,
+    maximizable: false,
+    minimizable: false,
+    fullscreenable: false,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    hasShadow: false,
+    show: false,
+    title: "Agentic OS Widget",
+    webPreferences,
+  });
+  lockNavigation(widgetWin);
+  widgetWin.loadURL(`${baseUrl}/widget`);
+  widgetWin.once("ready-to-show", () => {
+    if (prefs.widgetVisible) widgetWin.showInactive();
+  });
+  widgetWin.on("moved", () => {
+    const [x, y] = widgetWin.getPosition();
+    prefs.widgetPos = { x, y };
+    savePrefs();
+  });
+  widgetWin.on("close", (e) => {
+    if (!quitting) {
+      e.preventDefault();
+      toggleWidget(false);
+    }
+  });
+}
+
+function toggleWidget(force) {
+  if (!widgetWin) createWidget();
+  const show = typeof force === "boolean" ? force : !widgetWin.isVisible();
+  if (show) widgetWin.showInactive();
+  else widgetWin.hide();
+  prefs.widgetVisible = show;
+  savePrefs();
+  refreshTray();
+}
+
+ipcMain.on("widget:resize", (e, height) => {
+  if (!widgetWin || e.sender !== widgetWin.webContents) return;
+  const h = Math.round(Number(height));
+  if (Number.isFinite(h) && h >= 80 && h <= 1400) widgetWin.setContentSize(WIDGET_WIDTH, h);
+});
+ipcMain.on("widget:hide", (e) => {
+  if (widgetWin && e.sender === widgetWin.webContents) toggleWidget(false);
+});
+ipcMain.on("app:open-dashboard", () => showMain());
+
+async function api(pathname, body) {
+  const opts = body
+    ? { method: "POST", headers: { "Content-Type": "application/json", "X-Agentic-OS": "1" }, body: JSON.stringify(body) }
+    : { cache: "no-store" };
+  const r = await fetch(baseUrl + pathname, opts);
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || r.statusText);
+  return j;
+}
+
+const modelName = (id) => {
+  const m = /claude-([a-z]+)-(\d+)(?:-(\d+))?/.exec(id || "");
+  return m ? `${m[1][0].toUpperCase()}${m[1].slice(1)} ${m[2]}${m[3] ? "." + m[3] : ""}` : "default model";
+};
+const fmtTok = (n) => (n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e3 ? (n / 1e3).toFixed(1) + "K" : String(n || 0));
+
+async function runSkill(skill) {
+  const { response } = await dialog.showMessageBox({
+    type: "question",
+    buttons: ["Run", "Cancel"],
+    defaultId: 0,
+    cancelId: 1,
+    title: "Agentic OS",
+    message: `Run ${skill.label}?`,
+    detail: `${modelName(skill.model)} · headless claude -p in the vault. This uses plan usage.`,
+  });
+  if (response !== 0) return;
+  try {
+    await api(`/api/run/${skill.name}`, {});
+    poll();
+  } catch (e) {
+    dialog.showErrorBox("Agentic OS", e.message);
+  }
+}
+
+function refreshTray() {
+  if (!tray) return;
+  const s = lastState;
+  const skills = (s && s.skills) || [];
+  const login = app.getLoginItemSettings(loginOptions()).openAtLogin;
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      { label: "Open dashboard", click: showMain },
+      { label: "Widget", type: "checkbox", checked: !!(widgetWin && widgetWin.isVisible()), click: () => toggleWidget() },
+      { type: "separator" },
+      {
+        label: "Run skill",
+        enabled: skills.length > 0,
+        submenu: skills.map((k) => ({
+          label: `${k.label}   ${(k.tier || "").toUpperCase()}${k.running ? "   · running" : ""}`,
+          enabled: !k.running,
+          click: () => runSkill(k),
+        })),
+      },
+      { type: "separator" },
+      {
+        label: "Start at login",
+        type: "checkbox",
+        checked: login,
+        click: (item) => app.setLoginItemSettings({ ...loginOptions(), openAtLogin: item.checked }),
+      },
+      { type: "separator" },
+      {
+        label: "Quit Agentic OS",
+        click: () => {
+          quitting = true;
+          app.quit();
+        },
+      },
+    ])
+  );
+  if (s) {
+    const f = s.fiveHour;
+    tray.setToolTip(
+      `Agentic OS\n5H ${fmtTok(f.used)} / ${fmtTok(f.limit)} · Routines ${s.routines.runsToday}/${s.routines.limit}`
+    );
+  } else {
+    tray.setToolTip("Agentic OS — dashboard offline");
+  }
+}
+
+// At login, start in the tray (widget only). In development the app runs as `electron <dir>`,
+// so the login item must also pass the app path.
+function loginOptions() {
+  return app.isPackaged
+    ? { args: ["--hidden"] }
+    : { path: process.execPath, args: [app.getAppPath(), "--hidden"] };
+}
+
+function notifyFinished(run) {
+  if (!Notification.isSupported()) return;
+  const ok = run.status === "COMPLETE";
+  const n = new Notification({
+    title: `${run.label} · ${ok ? "complete" : "failed"}`,
+    body: ok
+      ? `$${(run.cost ?? 0).toFixed(4)} · ${modelName(run.model)} · ${run.output ?? 0} tokens out`
+      : run.error || "Run failed",
+    icon: robotIcon(6),
+    silent: ok,
+  });
+  if (run.note) n.on("click", () => api("/api/open/note", { file: run.note }).catch(() => {}));
+  n.show();
+}
+
+async function poll() {
+  try {
+    lastState = await api("/api/state");
+    for (const r of lastState.recentRuns) {
+      const before = seenStatus.get(r.id);
+      if (before === "RUNNING" && r.status !== "RUNNING") notifyFinished(r);
+      seenStatus.set(r.id, r.status);
+    }
+  } catch {
+    lastState = null;
+  }
+  refreshTray();
+  const busy = lastState && lastState.recentRuns.some((r) => r.status === "RUNNING");
+  clearTimeout(poll.timer);
+  poll.timer = setTimeout(poll, busy ? 3000 : 10000);
+}
+
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+} else {
+  app.on("second-instance", () => showMain());
+  app.on("window-all-closed", (e) => e.preventDefault()); // stay in the tray
+  app.on("before-quit", () => (quitting = true));
+
+  app.whenReady().then(async () => {
+    nativeTheme.themeSource = "dark";
+    app.setAppUserModelId("Agentic OS"); // needed for Windows notifications
+    const started = await server.start({ hooks: { toggleWidget: () => toggleWidget() } });
+    baseUrl = started.url;
+    if (started.alreadyRunning) console.log("Attached to the dashboard server that is already running.");
+
+    tray = new Tray(robotIcon(3));
+    tray.on("click", showMain);
+    createWidget();
+    if (!process.argv.includes("--hidden")) showMain();
+    poll();
+  });
+}
