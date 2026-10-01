@@ -1,6 +1,6 @@
 {
   "port": 4747,
-  "plan": "MAX",
+  "plan": "PRO",
   "permissionMode": "acceptEdits",
   "claudePath": "claude",
   "terminal": "auto",
@@ -15,8 +15,8 @@
     "draftsFolder": "output/drafts"
   },
   "limits": {
-    "fiveHourTokens": 5000000,
-    "weeklyTokens": 60000000,
+    "fiveHourTokens": 2400000,
+    "weeklyTokens": 16300000,
     "countCacheReads": false,
     "weeklyReset": null
   },

@@ -8,6 +8,7 @@ const usage = require("./lib/usage");
 const { createRunner } = require("./lib/runner");
 const { createIntegrations } = require("./lib/integrations");
 const { createCloudSync } = require("./lib/cloudsync");
+const limits = require("./lib/limits");
 
 const ROOT = __dirname;
 const cfgFile = ["config.json", "config.example.json"].map((f) => path.join(ROOT, f)).find((f) => fs.existsSync(f));
@@ -86,12 +87,15 @@ function integrationList() {
 }
 
 function state() {
-  const u = usage.summary(cfg);
+  const live = limits.live();
+  const u = usage.summary(cfg, live);
   const runs = runner.list();
   return {
     meta: {
       vault: cfg.vault.label,
-      plan: cfg.plan,
+      plan: String(live.plan || cfg.plan).toUpperCase(),
+      limitsLive: !!(live.fiveHour || live.weekly),
+      limitsError: live.error || null,
       permissions: (cfg.permissionMode || "default").replace(/([a-z])([A-Z])/g, "$1 $2"),
     },
     fiveHour: u.fiveHour,
@@ -256,6 +260,8 @@ function start(options = {}) {
       resolve({ url, alreadyRunning: true });
     });
     server.listen(cfg.port, "127.0.0.1", () => {
+      usage.setCalibrationFile(path.join(DATA, "limits.json"));
+      limits.refresh();
       runner = createRunner(cfg, DATA);
       integrations = createIntegrations(cfg);
       cloudSync = createCloudSync(cfg, ROOT);

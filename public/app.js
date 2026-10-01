@@ -66,7 +66,8 @@ function modelName(id) {
 }
 
 function tile(el, o) {
-  const pct = o.limit ? Math.min(100, (o.used / o.limit) * 100) : 0;
+  // Live utilization from claude.ai when available; otherwise estimated from tokens.
+  const pct = o.pct != null ? Math.min(100, o.pct) : o.limit ? Math.min(100, (o.used / o.limit) * 100) : 0;
   el.innerHTML = `
     <div class="row"><span class="lbl">${o.label}</span><span class="rt">${o.right}</span></div>
     <div class="meter" role="meter" aria-valuenow="${Math.round(pct)}" aria-valuemin="0" aria-valuemax="100"><div class="fill" style="width:${pct}%"></div></div>
@@ -77,13 +78,16 @@ function tile(el, o) {
 
 function renderTiles(s) {
   const f = s.fiveHour;
+  const pctText = (x) => (x.pct != null ? `${Math.round(x.pct)}% · ` : "· ");
+  const limText = (x) => `${x.live ? "~" : ""}${fmtTok(x.limit)}`;
   tile($("#t-5h"), {
     label: "5-HOUR WINDOW",
     right: `RESETS · ${fmtDur(f.resetsIn)}`,
     used: f.used,
     limit: f.limit,
-    value: `${fmtTok(f.used)} <small>/ ${fmtTok(f.limit)}</small>`,
-    mid: `· ${f.sessions} SESSIONS`,
+    pct: f.pct,
+    value: `${fmtTok(f.used)} <small>/ ${limText(f)}</small>`,
+    mid: `${pctText(f)}${f.sessions} SESSIONS`,
     badge: fmtTrend(f.trend),
   });
   const w = s.weekly;
@@ -92,8 +96,9 @@ function renderTiles(s) {
     right: `RESETS · ${fmtDur(w.resetsIn)}`,
     used: w.used,
     limit: w.limit,
-    value: `${fmtTok(w.used)} <small>/ ${fmtTok(w.limit)}</small>`,
-    mid: `· ${w.sessions} SESSIONS`,
+    pct: w.pct,
+    value: `${fmtTok(w.used)} <small>/ ${limText(w)}</small>`,
+    mid: `${pctText(w)}${w.sessions} SESSIONS`,
     badge: fmtTrend(w.trend),
   });
   const r = s.routines;
@@ -266,7 +271,8 @@ function renderChanges(list) {
 }
 
 function render(s) {
-  $("#meta").textContent = `VAULT · ${s.meta.vault} · PLAN · ${s.meta.plan} · PERMISSIONS · ${s.meta.permissions}`;
+  $("#meta").textContent = `VAULT · ${s.meta.vault} · PLAN · ${s.meta.plan} · LIMITS · ${s.meta.limitsLive ? "LIVE" : "EST"} · PERMISSIONS · ${s.meta.permissions}`;
+  $("#meta").title = s.meta.limitsError || (s.meta.limitsLive ? "Usage from claude.ai (same as /usage)" : "");
   renderTiles(s);
   renderChart(s.activity);
   renderIntegrations(s.integrations);

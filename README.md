@@ -61,8 +61,11 @@ widget.vbs           ← ویجت شناور (WPF، بدون نصب چیز اض�
 
 ## داشبورد
 
-- **5-HOUR / WEEKLY WINDOW** — توکن‌های مصرفی از لاگ‌های `~/.claude/projects/**/*.jsonl`. سقف‌ها در `config.json → limits` دستی‌اند (Anthropic سقف واقعی را محلی نمی‌دهد). `countCacheReads` تعیین می‌کند cache readها حساب شوند یا نه. برای ریست هفتگی ثابت: `"weeklyReset": {"day": "thu", "hour": 10}`.
-- **ROUTINES** — اجراهای امروز / `dailyRunLimit` (۱۵، مثل سقف Routines پلن Max) + هزینهٔ معادل API امروز.
+- **5-HOUR / WEEKLY WINDOW:** نوارها درصد واقعی مصرف از claude.ai را نشان می‌دهند؛ همان عددی که `/usage` در Claude Code نشان می‌دهد (`LIMITS · LIVE` در هدر). زمان ریست هم واقعی است.
+  - این عدد با لاگین محلی Claude Code (`~/.claude/.credentials.json`) خوانده می‌شود. توکن فقط به `api.anthropic.com` فرستاده می‌شود و هیچ‌وقت به مرورگر نمی‌رسد.
+  - توکن‌های مصرفی از لاگ‌های `~/.claude/projects/**/*.jsonl` می‌آیند. سقف توکنی از «مصرف ÷ درصد» حساب و در `data/limits.json` ذخیره می‌شود (با علامت `~`).
+  - اگر endpoint در دسترس نباشد (`LIMITS · EST`)، همان سقف ذخیره‌شده یا `config.json → limits` استفاده می‌شود.
+- **ROUTINES:** اجراهای امروز در برابر `dailyRunLimit`، که فقط یک محافظ محلی است؛ Anthropic سقف روزانه برای routineها ندارد و فقط سقف ساعتی دارد. کنارش هزینهٔ معادل API امروز نمایش داده می‌شود.
 - **CUMULATIVE ACTIVITY** — مجموع تجمعی توکن‌ها در ۳۰ روز (hover برای جزئیات روز).
 - **INTEGRATIONS** — از `claude mcp list` (هر ۱۵ دقیقه).
 - **LAST RUN / RECENT RUNS** — هر اجرا یک یادداشت در `dashboard-runs/YYYY-MM-DD/HH-MM-<skill>.md`؛ کلیک = باز شدن در Obsidian.

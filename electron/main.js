@@ -245,10 +245,8 @@ function refreshTray() {
     ])
   );
   if (s) {
-    const f = s.fiveHour;
-    tray.setToolTip(
-      `Agentic OS\n5H ${fmtTok(f.used)} / ${fmtTok(f.limit)} · Routines ${s.routines.runsToday}/${s.routines.limit}`
-    );
+    const share = (x) => (x.pct != null ? `${Math.round(x.pct)}%` : `${fmtTok(x.used)} / ${fmtTok(x.limit)}`);
+    tray.setToolTip(`Agentic OS\n5H ${share(s.fiveHour)} · Week ${share(s.weekly)} · Runs ${s.routines.runsToday}`);
   } else {
     tray.setToolTip("Agentic OS — dashboard offline");
   }
@@ -258,8 +256,17 @@ function refreshTray() {
 // so the login item must also pass the app path.
 function loginOptions() {
   return app.isPackaged
-    ? { args: ["--hidden"] }
-    : { path: process.execPath, args: [app.getAppPath(), "--hidden"] };
+    ? { name: "Agentic OS", args: ["--hidden"] }
+    : { name: "Agentic OS", path: process.execPath, args: [app.getAppPath(), "--hidden"] };
+}
+
+// `--set-login=on|off` toggles start-at-login from the command line (also via a second instance).
+function applyLoginFlag(argv) {
+  const flag = argv.find((a) => a.startsWith("--set-login="));
+  if (!flag) return false;
+  app.setLoginItemSettings({ ...loginOptions(), openAtLogin: flag === "--set-login=on" });
+  refreshTray();
+  return true;
 }
 
 function notifyFinished(run) {
@@ -297,7 +304,9 @@ async function poll() {
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
-  app.on("second-instance", () => showMain());
+  app.on("second-instance", (_e, argv) => {
+    if (!applyLoginFlag(argv)) showMain();
+  });
   app.on("window-all-closed", (e) => e.preventDefault()); // stay in the tray
   app.on("before-quit", () => (quitting = true));
 
@@ -311,7 +320,8 @@ if (!app.requestSingleInstanceLock()) {
     tray = new Tray(robotIcon(3));
     tray.on("click", showMain);
     createWidget();
-    if (!process.argv.includes("--hidden")) showMain();
+    const loginFlag = applyLoginFlag(process.argv);
+    if (!process.argv.includes("--hidden") && !loginFlag) showMain();
     poll();
   });
 }

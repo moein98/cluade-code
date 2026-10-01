@@ -231,10 +231,12 @@ function New-Tile {
   [void]$ui.Tiles.Children.Add($sp)
   @{ Label = $lbl; Right = $rt; Meter = $meter; Value = $vRun; Limit = $lRun; Mid = $mid; Badge = $bt; BadgeBox = $badge }
 }
-function Set-Tile($t, $label, $right, $used, $limit, $mid, $badge) {
+function Set-Tile($t, $label, $right, $used, $limit, $mid, $badge, $livePct) {
   $t.Label.Text = $label
   $t.Right.Text = $right
-  $pct = if ($limit -gt 0) { [Math]::Min(1, [double]$used / [double]$limit) } else { 0 }
+  # Live utilization from claude.ai when available; otherwise estimated from tokens.
+  $pct = if ($null -ne $livePct) { [Math]::Min(1, [double]$livePct / 100) }
+         elseif ($limit -gt 0) { [Math]::Min(1, [double]$used / [double]$limit) } else { 0 }
   $lit = [int][Math]::Round($pct * $TICKS)
   if ($used -gt 0 -and $lit -eq 0) { $lit = 1 }
   for ($i = 0; $i -lt $TICKS; $i++) {
@@ -359,11 +361,15 @@ function Render {
   $ui.Details.Visibility = if ($script:prefs.compact) { 'Collapsed' } else { 'Visible' }
 
   $f = $s.fiveHour
-  Set-Tile $tile5h '5-HOUR WINDOW' "RESETS $dot $(Format-Dur $f.resetsIn)" $f.used $f.limit "$dot $($f.sessions) SESSIONS" (Format-Trend $f.trend)
-  $tile5h.Value.Text = Format-Tok $f.used; $tile5h.Limit.Text = " / $(Format-Tok $f.limit)"
+  $pct5 = if ($null -ne $f.pct) { "$([Math]::Round([double]$f.pct))% $dot " } else { "$dot " }
+  $lim5 = if ($f.live) { '~' } else { '' }
+  Set-Tile $tile5h '5-HOUR WINDOW' "RESETS $dot $(Format-Dur $f.resetsIn)" $f.used $f.limit "$pct5$($f.sessions) SESSIONS" (Format-Trend $f.trend) $f.pct
+  $tile5h.Value.Text = Format-Tok $f.used; $tile5h.Limit.Text = " / $lim5$(Format-Tok $f.limit)"
   $w = $s.weekly
-  Set-Tile $tileWeek 'WEEKLY WINDOW' "RESETS $dot $(Format-Dur $w.resetsIn)" $w.used $w.limit "$dot $($w.sessions) SESSIONS" (Format-Trend $w.trend)
-  $tileWeek.Value.Text = Format-Tok $w.used; $tileWeek.Limit.Text = " / $(Format-Tok $w.limit)"
+  $pctW = if ($null -ne $w.pct) { "$([Math]::Round([double]$w.pct))% $dot " } else { "$dot " }
+  $limW = if ($w.live) { '~' } else { '' }
+  Set-Tile $tileWeek 'WEEKLY WINDOW' "RESETS $dot $(Format-Dur $w.resetsIn)" $w.used $w.limit "$pctW$($w.sessions) SESSIONS" (Format-Trend $w.trend) $w.pct
+  $tileWeek.Value.Text = Format-Tok $w.used; $tileWeek.Limit.Text = " / $limW$(Format-Tok $w.limit)"
   $r = $s.routines
   Set-Tile $tileRoutines "ROUTINES $dot $($s.meta.plan)" '' $r.runsToday $r.limit ('${0:0.0} TODAY' -f [double]$r.costToday) $null
   $tileRoutines.Value.Text = [string]$r.runsToday; $tileRoutines.Limit.Text = " / $($r.limit)"

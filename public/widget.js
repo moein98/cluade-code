@@ -49,7 +49,7 @@ async function post(url, body) {
 }
 
 function tile(el, o) {
-  const pct = o.limit ? Math.min(100, (o.used / o.limit) * 100) : 0;
+  const pct = o.pct != null ? Math.min(100, o.pct) : o.limit ? Math.min(100, (o.used / o.limit) * 100) : 0;
   el.innerHTML = `
     <div class="row"><span class="lbl">${o.label}</span><span class="rt">${o.right}</span></div>
     <div class="meter"><div class="fill" style="width:${pct}%"></div></div>
@@ -64,15 +64,17 @@ function render() {
   $("#body").hidden = !s;
   $("#offline").hidden = !!s;
   if (s) {
+    const pctText = (x) => (x.pct != null ? `${Math.round(x.pct)}% · ` : "· ");
+    const limText = (x) => `${x.live ? "~" : ""}${fmtTok(x.limit)}`;
     const f = s.fiveHour;
     tile($("#t-5h"), {
-      label: "5-HOUR WINDOW", right: `RESETS · ${fmtDur(f.resetsIn)}`, used: f.used, limit: f.limit,
-      value: `${fmtTok(f.used)} <small>/ ${fmtTok(f.limit)}</small>`, mid: `· ${f.sessions} SESSIONS`, badge: fmtTrend(f.trend),
+      label: "5-HOUR WINDOW", right: `RESETS · ${fmtDur(f.resetsIn)}`, used: f.used, limit: f.limit, pct: f.pct,
+      value: `${fmtTok(f.used)} <small>/ ${limText(f)}</small>`, mid: `${pctText(f)}${f.sessions} SESSIONS`, badge: fmtTrend(f.trend),
     });
     const w = s.weekly;
     tile($("#t-week"), {
-      label: "WEEKLY WINDOW", right: `RESETS · ${fmtDur(w.resetsIn)}`, used: w.used, limit: w.limit,
-      value: `${fmtTok(w.used)} <small>/ ${fmtTok(w.limit)}</small>`, mid: `· ${w.sessions} SESSIONS`, badge: fmtTrend(w.trend),
+      label: "WEEKLY WINDOW", right: `RESETS · ${fmtDur(w.resetsIn)}`, used: w.used, limit: w.limit, pct: w.pct,
+      value: `${fmtTok(w.used)} <small>/ ${limText(w)}</small>`, mid: `${pctText(w)}${w.sessions} SESSIONS`, badge: fmtTrend(w.trend),
     });
     const r = s.routines;
     tile($("#t-routines"), {
