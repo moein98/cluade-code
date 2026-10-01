@@ -15,7 +15,8 @@
   --link: #5c9ee0;
   --ok: #d9a047;
   --err: #d8463c;
-  --font: "JetBrains Mono", "Cascadia Mono", Consolas, ui-monospace, monospace;
+  /* Latin and digits stay monospace; Persian glyphs fall through to Vazirmatn. */
+  --font: "JetBrains Mono", "Cascadia Mono", Consolas, "Vazirmatn", Tahoma, ui-monospace, monospace;
 }
 
 * { box-sizing: border-box; }
@@ -60,7 +61,16 @@ h1 .o {
   background: linear-gradient(180deg, var(--orange-2) 0%, #b44c2b 100%);
   -webkit-background-clip: text; background-clip: text; color: transparent;
 }
-.meta { font-size: 11px; letter-spacing: .16em; color: var(--mute); text-transform: uppercase; text-align: right; }
+.meta { font-size: 11px; letter-spacing: .16em; color: var(--mute); text-transform: uppercase; text-align: end; }
+.top-right { display: flex; align-items: center; gap: 18px; }
+.lang { display: inline-flex; border: 1px solid var(--line); border-radius: 2px; overflow: hidden; }
+.lang button {
+  background: var(--panel-2); border: 0; padding: 5px 10px; cursor: pointer;
+  color: var(--mute); font: 600 11px/1 var(--font);
+}
+.lang button + button { border-inline-start: 1px solid var(--line); }
+.lang button[aria-pressed="true"] { color: var(--ink); background: #1a120e; }
+.lang button:hover { color: var(--ink); }
 
 /* nav */
 .nav { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 38px; }
@@ -104,7 +114,7 @@ h1 .o {
   background: repeating-linear-gradient(90deg, var(--tick) 0 3px, transparent 3px 5px);
 }
 .meter .fill {
-  position: absolute; inset: 0 auto 0 0;
+  position: absolute; inset-block: 0; inset-inline-start: 0;
   background: repeating-linear-gradient(90deg, var(--orange) 0 3px, transparent 3px 5px);
   transition: width .4s;
 }
@@ -229,6 +239,26 @@ textarea:focus { outline: none; border-color: var(--orange-deep); }
   padding: 10px 14px; font-size: 11.5px; letter-spacing: .06em; color: var(--ink-2); max-width: 420px;
 }
 .toast.bad { border-color: var(--err); }
+
+/* Persian (RTL). Letter-spacing breaks Persian letter joining, so it is off except for the Latin logo. */
+.brand { direction: ltr; }
+.chart { direction: ltr; }
+.tip { unicode-bidi: plaintext; }
+html[lang="fa"] body *:not(.keep-ls):not(.keep-ls *) { letter-spacing: 0 !important; }
+html[lang="fa"] .lbl, html[lang="fa"] .accent-lbl, html[lang="fa"] .rt, html[lang="fa"] .mid { font-size: 12.5px; }
+html[lang="fa"] .meta { font-size: 12px; }
+html[lang="fa"] .nb { font-size: 13.5px; }
+html[lang="fa"] .integ-item { font-size: 12.5px; }
+html[lang="fa"] .nm { font-size: 13.5px; }
+html[lang="fa"] .stats, html[lang="fa"] .st, html[lang="fa"] .tm { font-size: 12px; }
+html[lang="fa"] .badge { font-size: 11px; }
+html[lang="fa"] .skill .sn { font-size: 13.5px; }
+html[lang="fa"] .skill .ss { font-size: 11.5px; }
+html[lang="fa"] .skill .go, html[lang="fa"] .tier { font-size: 12px; }
+html[lang="fa"] .status { font-size: 34px; }
+html[lang="fa"] .empty { font-size: 12px; }
+html[lang="fa"] .skill { text-align: right; }
+html[lang="fa"] .list-card li { grid-template-columns: 130px 1fr auto; }
 
 @media (max-width: 1000px) {
   .tiles, .duo { grid-template-columns: 1fr; }

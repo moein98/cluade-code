@@ -1,6 +1,7 @@
 {
   "port": 4747,
   "plan": "PRO",
+  "language": "fa",
   "permissionMode": "acceptEdits",
   "claudePath": "claude",
   "terminal": "auto",
@@ -30,13 +31,16 @@
   "skills": [
     {
       "name": "vault-cleanup",
+      "labels": { "fa": "پاک‌سازی مخزن" },
       "domain": "Memory",
       "tier": "standard",
       "schedule": "20:00",
+      "days": ["thu"],
       "allowedTools": ["Read", "Glob", "Grep"]
     },
     {
       "name": "morning-brief",
+      "labels": { "fa": "گزارش صبح" },
       "domain": "Productivity",
       "tier": "standard",
       "schedule": "08:00",
@@ -51,6 +55,7 @@
     },
     {
       "name": "inbox-brief",
+      "labels": { "fa": "خلاصهٔ ایمیل" },
       "domain": "Productivity",
       "tier": "standard",
       "allowedTools": [
@@ -63,6 +68,7 @@
     },
     {
       "name": "weekly-review",
+      "labels": { "fa": "مرور هفتگی" },
       "domain": "Productivity",
       "tier": "standard",
       "schedule": "20:30",
@@ -71,20 +77,23 @@
     },
     {
       "name": "deep-research",
+      "labels": { "fa": "تحقیق عمیق" },
       "domain": "Research",
-      "tier": "heavy",
+      "tier": "standard",
       "prompt": "Use the deep-research skill on this topic:\n\n<topic here>",
       "timeoutMin": 30,
       "allowedTools": ["WebSearch", "WebFetch", "Read", "Write", "Edit", "Glob", "Grep"]
     },
     {
       "name": "market-scan",
+      "labels": { "fa": "اسکن بازار" },
       "domain": "Trading",
       "tier": "standard",
       "allowedTools": ["WebSearch", "WebFetch", "Read", "Write", "Glob"]
     },
     {
       "name": "project-pulse",
+      "labels": { "fa": "وضعیت پروژه‌ها" },
       "domain": "Projects",
       "tier": "light",
       "allowedTools": ["Read", "Glob", "Grep"]

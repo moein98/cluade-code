@@ -3,7 +3,7 @@
 const $ = (s) => document.querySelector(s);
 const esc = (s) =>
   String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
-const pad = (n) => String(n).padStart(2, "0");
+const { t, hm } = I18N;
 const desktop = window.agenticDesktop || null;
 
 let state = null;
@@ -17,25 +17,18 @@ function fmtTok(n) {
   if (n >= 1e3) return (n / 1e3).toFixed(1) + "K";
   return String(Math.round(n || 0));
 }
-function fmtDur(ms) {
-  if (ms == null) return "—";
-  const m = Math.max(0, Math.round(ms / 60000));
-  const d = Math.floor(m / 1440);
-  const h = Math.floor((m % 1440) / 60);
-  return d ? `${d}D ${h}H` : `${h}H ${pad(m % 60)}M`;
-}
-function fmtTrend(t) {
-  if (t == null || Math.abs(t) < 0.1) return "· FLAT";
-  return (t > 0 ? "▲ " : "▼ ") + Math.round(Math.abs(t) * 100) + "%";
+function fmtTrend(x) {
+  if (x == null || Math.abs(x) < 0.1) return `· ${t("flat")}`;
+  return (x > 0 ? "▲ " : "▼ ") + Math.round(Math.abs(x) * 100) + "%";
 }
 function modelName(id) {
   const m = /claude-([a-z]+)-(\d+)(?:-(\d+))?/.exec(id || "");
-  return m ? `${m[1].toUpperCase()} ${m[2]}${m[3] ? "." + m[3] : ""}` : "DEFAULT";
+  return m ? `${m[1].toUpperCase()} ${m[2]}${m[3] ? "." + m[3] : ""}` : t("defaultModel");
 }
-const hm = (t) => {
-  const d = new Date(t);
-  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
-};
+// Joins mixed Persian/number segments; each is bidi-isolated so RTL text keeps its order.
+const segs = (...parts) => parts.map((p) => `<bdi>${p}</bdi>`).join(" · ");
+const skillOf = (name) => (state ? state.skills.find((k) => k.name === name) : null);
+const labelOf = (name, fallback) => esc(I18N.skillLabel(skillOf(name), fallback));
 
 async function post(url, body) {
   const r = await fetch(url, {
@@ -53,33 +46,34 @@ function tile(el, o) {
   el.innerHTML = `
     <div class="row"><span class="lbl">${o.label}</span><span class="rt">${o.right}</span></div>
     <div class="meter"><div class="fill" style="width:${pct}%"></div></div>
-    <div class="row bottom"><span class="val">${o.value}</span><span class="mid">${o.mid}</span>${
+    <div class="row bottom"><span class="val"><bdi>${o.value}</bdi></span><span class="mid">${o.mid}</span>${
       o.badge ? `<span class="badge">${o.badge}</span>` : "<span></span>"
     }</div>`;
 }
 
 function render() {
   const s = state;
+  if (s && s.meta.language && s.meta.language !== I18N.lang()) I18N.set(s.meta.language);
   $("#online").className = "w-dot " + (s ? "ok" : "bad");
   $("#body").hidden = !s;
   $("#offline").hidden = !!s;
   if (s) {
-    const pctText = (x) => (x.pct != null ? `${Math.round(x.pct)}% · ` : "· ");
     const limText = (x) => `${x.live ? "~" : ""}${fmtTok(x.limit)}`;
-    const f = s.fiveHour;
-    tile($("#t-5h"), {
-      label: "5-HOUR WINDOW", right: `RESETS · ${fmtDur(f.resetsIn)}`, used: f.used, limit: f.limit, pct: f.pct,
-      value: `${fmtTok(f.used)} <small>/ ${limText(f)}</small>`, mid: `${pctText(f)}${f.sessions} SESSIONS`, badge: fmtTrend(f.trend),
-    });
-    const w = s.weekly;
-    tile($("#t-week"), {
-      label: "WEEKLY WINDOW", right: `RESETS · ${fmtDur(w.resetsIn)}`, used: w.used, limit: w.limit, pct: w.pct,
-      value: `${fmtTok(w.used)} <small>/ ${limText(w)}</small>`, mid: `${pctText(w)}${w.sessions} SESSIONS`, badge: fmtTrend(w.trend),
-    });
+    for (const [id, x, label] of [
+      ["#t-5h", s.fiveHour, t("fiveHour")],
+      ["#t-week", s.weekly, t("weekly")],
+    ]) {
+      tile($(id), {
+        label, right: `${t("resets")} · ${I18N.dur(x.resetsIn, true)}`, used: x.used, limit: x.limit, pct: x.pct,
+        value: `${fmtTok(x.used)} <small>/ ${limText(x)}</small>`,
+        mid: x.pct != null ? segs(`${Math.round(x.pct)}%`, `${x.sessions} ${t("sessions")}`) : `· ${x.sessions} ${t("sessions")}`,
+        badge: fmtTrend(x.trend),
+      });
+    }
     const r = s.routines;
     tile($("#t-routines"), {
-      label: `ROUTINES · ${esc(s.meta.plan)}`, right: "", used: r.runsToday, limit: r.limit,
-      value: `${r.runsToday} <small>/ ${r.limit}</small>`, mid: `$${r.costToday.toFixed(1)} TODAY`,
+      label: `${t("routines")} · ${esc(s.meta.plan)}`, right: "", used: r.runsToday, limit: r.limit,
+      value: `${r.runsToday} <small>/ ${r.limit}</small>`, mid: `$${r.costToday.toFixed(1)} ${t("today")}`,
     });
 
     const run = s.recentRuns.find((x) => x.status === "RUNNING") || s.lastRun;
@@ -87,17 +81,17 @@ function render() {
     if (run) {
       const cls = run.status === "RUNNING" ? "running" : run.status === "FAILED" ? "failed" : "";
       let stats;
-      if (run.status === "RUNNING") stats = `STARTED ${hm(run.startedAt)} · ${modelName(run.model)}`;
-      else if (run.status === "FAILED") stats = esc(run.error || "failed");
-      else stats = `${hm(run.startedAt)} · $${(run.cost ?? 0).toFixed(4)} · ${modelName(run.model)} · ${run.input ?? 0} IN · ${run.output ?? 0} OUT`;
+      if (run.status === "RUNNING") stats = segs(`${t("started")} ${hm(run.startedAt)}`, modelName(run.model));
+      else if (run.status === "FAILED") stats = `<bdi>${esc(run.error || "failed")}</bdi>`;
+      else stats = segs(hm(run.startedAt), `$${(run.cost ?? 0).toFixed(4)}`, modelName(run.model), `${run.output ?? 0} ${t("out")}`);
       last.dataset.note = run.note || "";
-      last.title = run.note ? `Open in Obsidian · ${run.note}` : "";
-      last.innerHTML = `<div class="lbl">LAST RUN · ${esc(run.label)}</div>
-        <div class="status ${cls}"><span>${run.status}</span><span class="sdot"></span></div>
+      last.title = run.note ? `${t("openInObsidian")} · ${run.note}` : "";
+      last.innerHTML = `<div class="lbl">${t("lastRun")} · ${labelOf(run.skill, run.label)}</div>
+        <div class="status ${cls}"><span>${t(run.status)}</span><span class="sdot"></span></div>
         <div class="stats${run.status === "FAILED" ? " err" : ""}">${stats}</div>`;
     } else {
       last.dataset.note = "";
-      last.innerHTML = `<div class="lbl">LAST RUN</div><div class="status"><span>IDLE</span><span class="sdot"></span></div><div class="stats">NO RUNS YET</div>`;
+      last.innerHTML = `<div class="lbl">${t("lastRun")}</div><div class="status"><span>${t("idle")}</span><span class="sdot"></span></div><div class="stats">${t("noRuns")}</div>`;
     }
 
     const next = $("#next");
@@ -106,11 +100,12 @@ function render() {
       next.textContent = flash.msg;
     } else if (s.upcoming.length) {
       const u = s.upcoming[0];
+      const label = I18N.skillLabel(skillOf(u.skill), u.label) + (u.cloud ? ` · ${t("cloud")}` : "");
       next.className = "w-next";
-      next.textContent = `NEXT · ${u.label} · ${hm(u.at)} · IN ${fmtDur(u.at - Date.now())}`;
+      next.textContent = `${t("next")} · ${label} · ${hm(u.at)} · ${t("inTime", { d: I18N.dur(u.at - Date.now(), true) })}`;
     } else {
       next.className = "w-next";
-      next.textContent = "NEXT · NOTHING SCHEDULED";
+      next.textContent = `${t("next")} · ${t("nothingScheduled")}`;
     }
 
     const live = armed && Date.now() - armedAt <= 4000;
@@ -118,8 +113,8 @@ function render() {
       .map((k) => {
         const isArmed = live && armed === k.name;
         const cls = k.running ? " running" : isArmed ? " armed" : "";
-        const text = k.running ? "RUNNING" : isArmed ? "CLICK TO RUN" : esc(k.label);
-        const tip = `${k.label} · ${(k.tier || "").toUpperCase()} · ${modelName(k.model)}\n\n${k.description}`;
+        const text = k.running ? t("RUNNING") : isArmed ? t("clickToRun") : esc(I18N.skillLabel(k));
+        const tip = `${I18N.skillLabel(k)} · ${I18N.tier(k.tier)} · ${modelName(k.model)}\n\n${k.description}`;
         return `<button class="w-skill${cls}" data-skill="${esc(k.name)}" title="${esc(tip)}"><i>${k.running ? "●" : "▸"}</i> ${text}</button>`;
       })
       .join("");
@@ -151,12 +146,12 @@ function showError(msg) {
 $("#skills").addEventListener("click", async (e) => {
   const b = e.target.closest("[data-skill]");
   if (!b || !state) return;
-  const k = state.skills.find((s) => s.name === b.dataset.skill);
+  const k = skillOf(b.dataset.skill);
   if (!k || k.running) return;
   if (k.prompt.includes("<topic here>")) {
     // Needs input (e.g. deep-research): use the dashboard's prompt editor.
     if (desktop) desktop.openDashboard();
-    else window.open("/", "_blank");
+    else window.open(`/#run=${k.name}`, "_blank");
     return;
   }
   if (armed !== k.name || Date.now() - armedAt > 4000) {
@@ -188,4 +183,5 @@ $("#last").addEventListener("click", async () => {
 $("#w-open").addEventListener("click", () => (desktop ? desktop.openDashboard() : window.open("/", "_blank")));
 $("#w-close").addEventListener("click", () => (desktop ? desktop.hideWidget() : window.close()));
 
+I18N.set("en");
 load();

@@ -28,6 +28,7 @@ const STATIC = {
   "/app.js": ["app.js", "text/javascript; charset=utf-8"],
   "/widget": ["widget.html", "text/html; charset=utf-8"],
   "/widget.js": ["widget.js", "text/javascript; charset=utf-8"],
+  "/i18n.js": ["i18n.js", "text/javascript; charset=utf-8"],
   "/robot.svg": ["robot.svg", "image/svg+xml"],
 };
 
@@ -60,6 +61,23 @@ function vaultChanges(hours) {
   return out.sort((a, b) => b.at - a.at).slice(0, 12);
 }
 
+// UI settings shared by the dashboard, widget and tray (currently just the language).
+const UI_FILE = path.join(DATA, "ui.json");
+const LANGUAGES = ["fa", "en"];
+function uiSettings() {
+  let s = {};
+  try {
+    s = JSON.parse(fs.readFileSync(UI_FILE, "utf8"));
+  } catch {}
+  return { language: LANGUAGES.includes(s.language) ? s.language : cfg.language || "en" };
+}
+function saveUiSettings(body) {
+  if (!LANGUAGES.includes(body.language)) throw new Error(`language must be one of ${LANGUAGES.join(", ")}`);
+  const next = { ...uiSettings(), language: body.language };
+  fs.writeFileSync(UI_FILE, JSON.stringify(next, null, 1));
+  return next;
+}
+
 // Cloud routines (Claude Code Routines) run on Anthropic's side; list their next fire time locally.
 function cloudUpcoming() {
   const now = Date.now();
@@ -71,7 +89,7 @@ function cloudUpcoming() {
       d.setDate(d.getDate() + i);
       d.setHours(h, m, 0, 0);
       const t = d.getTime();
-      if (t > now && t - now <= 24 * 3600e3) out.push({ skill: r.id, label: `${r.label} · CLOUD`, at: t });
+      if (t > now && t - now <= 24 * 3600e3) out.push({ skill: r.skill || r.id, label: r.label, cloud: true, at: t });
     }
   }
   return out;
@@ -92,6 +110,7 @@ function state() {
   const runs = runner.list();
   return {
     meta: {
+      language: uiSettings().language,
       vault: cfg.vault.label,
       plan: String(live.plan || cfg.plan).toUpperCase(),
       limitsLive: !!(live.fiveHour || live.weekly),
@@ -108,6 +127,7 @@ function state() {
     skills: runner.skills().map((s) => ({
       name: s.name,
       label: s.label,
+      labels: s.labels,
       domain: s.domain,
       description: s.description,
       schedule: s.schedule,
@@ -236,6 +256,7 @@ const server = http.createServer(async (req, res) => {
         return send(res, 200, runner.start(m[1], "manual", prompt, tier));
       }
       if ((m = /^\/api\/open\/(\w+)$/.exec(url.pathname))) return send(res, 200, openTarget(m[1], body));
+      if (url.pathname === "/api/settings") return send(res, 200, saveUiSettings(body));
       if (url.pathname === "/api/integrations/refresh") {
         integrations.refresh();
         return send(res, 200, { ok: true });

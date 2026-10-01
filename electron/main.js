@@ -183,6 +183,34 @@ async function api(pathname, body) {
   return j;
 }
 
+// Tray, dialog and notification strings; the language follows the dashboard setting.
+const STR = {
+  en: {
+    open: "Open dashboard", widget: "Widget", runSkill: "Run skill", running: "running",
+    login: "Start at login", quit: "Quit Agentic OS", run: "Run", cancel: "Cancel",
+    confirm: "Run {label}?", detail: "{model} · headless claude -p in the vault. This uses plan usage.",
+    complete: "complete", failed: "failed", tokensOut: "tokens out", offline: "dashboard offline",
+    week: "Week", runs: "Runs",
+  },
+  fa: {
+    open: "باز کردن داشبورد", widget: "ویجت", runSkill: "اجرای مهارت", running: "در حال اجرا",
+    login: "اجرا هنگام ورود به ویندوز", quit: "خروج از Agentic OS", run: "اجرا", cancel: "انصراف",
+    confirm: "«{label}» اجرا شود؟", detail: "{model} · اجرای پس‌زمینه با claude -p در مخزن. از سهمیهٔ پلن مصرف می‌کند.",
+    complete: "انجام شد", failed: "ناموفق", tokensOut: "توکن خروجی", offline: "داشبورد در دسترس نیست",
+    week: "هفته", runs: "اجرا",
+  },
+};
+function L(key, vars) {
+  const lang = (lastState && lastState.meta && lastState.meta.language) || "en";
+  let s = (STR[lang] || STR.en)[key] || STR.en[key];
+  for (const [k, v] of Object.entries(vars || {})) s = s.replace(`{${k}}`, v);
+  return s;
+}
+const skillLabel = (k) => {
+  const lang = lastState && lastState.meta && lastState.meta.language;
+  return (k.labels && k.labels[lang]) || k.label;
+};
+
 const modelName = (id) => {
   const m = /claude-([a-z]+)-(\d+)(?:-(\d+))?/.exec(id || "");
   return m ? `${m[1][0].toUpperCase()}${m[1].slice(1)} ${m[2]}${m[3] ? "." + m[3] : ""}` : "default model";
@@ -192,12 +220,12 @@ const fmtTok = (n) => (n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e3 ? (n / 1
 async function runSkill(skill) {
   const { response } = await dialog.showMessageBox({
     type: "question",
-    buttons: ["Run", "Cancel"],
+    buttons: [L("run"), L("cancel")],
     defaultId: 0,
     cancelId: 1,
     title: "Agentic OS",
-    message: `Run ${skill.label}?`,
-    detail: `${modelName(skill.model)} · headless claude -p in the vault. This uses plan usage.`,
+    message: L("confirm", { label: skillLabel(skill) }),
+    detail: L("detail", { model: modelName(skill.model) }),
   });
   if (response !== 0) return;
   try {
@@ -215,28 +243,28 @@ function refreshTray() {
   const login = app.getLoginItemSettings(loginOptions()).openAtLogin;
   tray.setContextMenu(
     Menu.buildFromTemplate([
-      { label: "Open dashboard", click: showMain },
-      { label: "Widget", type: "checkbox", checked: !!(widgetWin && widgetWin.isVisible()), click: () => toggleWidget() },
+      { label: L("open"), click: showMain },
+      { label: L("widget"), type: "checkbox", checked: !!(widgetWin && widgetWin.isVisible()), click: () => toggleWidget() },
       { type: "separator" },
       {
-        label: "Run skill",
+        label: L("runSkill"),
         enabled: skills.length > 0,
         submenu: skills.map((k) => ({
-          label: `${k.label}   ${(k.tier || "").toUpperCase()}${k.running ? "   · running" : ""}`,
+          label: `${skillLabel(k)}   ${modelName(k.model)}${k.running ? `   · ${L("running")}` : ""}`,
           enabled: !k.running,
           click: () => runSkill(k),
         })),
       },
       { type: "separator" },
       {
-        label: "Start at login",
+        label: L("login"),
         type: "checkbox",
         checked: login,
         click: (item) => app.setLoginItemSettings({ ...loginOptions(), openAtLogin: item.checked }),
       },
       { type: "separator" },
       {
-        label: "Quit Agentic OS",
+        label: L("quit"),
         click: () => {
           quitting = true;
           app.quit();
@@ -246,9 +274,9 @@ function refreshTray() {
   );
   if (s) {
     const share = (x) => (x.pct != null ? `${Math.round(x.pct)}%` : `${fmtTok(x.used)} / ${fmtTok(x.limit)}`);
-    tray.setToolTip(`Agentic OS\n5H ${share(s.fiveHour)} · Week ${share(s.weekly)} · Runs ${s.routines.runsToday}`);
+    tray.setToolTip(`Agentic OS\n5H ${share(s.fiveHour)} · ${L("week")} ${share(s.weekly)} · ${L("runs")} ${s.routines.runsToday}`);
   } else {
-    tray.setToolTip("Agentic OS — dashboard offline");
+    tray.setToolTip(`Agentic OS — ${L("offline")}`);
   }
 }
 
@@ -272,11 +300,12 @@ function applyLoginFlag(argv) {
 function notifyFinished(run) {
   if (!Notification.isSupported()) return;
   const ok = run.status === "COMPLETE";
+  const skill = (lastState && lastState.skills.find((k) => k.name === run.skill)) || run;
   const n = new Notification({
-    title: `${run.label} · ${ok ? "complete" : "failed"}`,
+    title: `${skillLabel(skill)} · ${ok ? L("complete") : L("failed")}`,
     body: ok
-      ? `$${(run.cost ?? 0).toFixed(4)} · ${modelName(run.model)} · ${run.output ?? 0} tokens out`
-      : run.error || "Run failed",
+      ? `$${(run.cost ?? 0).toFixed(4)} · ${modelName(run.model)} · ${run.output ?? 0} ${L("tokensOut")}`
+      : run.error || L("failed"),
     icon: robotIcon(6),
     silent: ok,
   });

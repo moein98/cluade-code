@@ -7,7 +7,7 @@
 <link rel="icon" href="/robot.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Vazirmatn:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/app.css">
 </head>
 <body>
@@ -15,18 +15,23 @@
   <header class="top">
     <div class="brand">
       <img class="bot" src="/robot.svg" alt="">
-      <h1><span class="a">AGENTIC</span><span class="o">OS</span></h1>
+      <h1 class="keep-ls"><span class="a">AGENTIC</span><span class="o">OS</span></h1>
     </div>
-    <div class="meta" id="meta"></div>
+    <div class="top-right">
+      <div class="meta" id="meta"></div>
+      <div class="lang" role="group" aria-label="Language">
+        <button data-lang="fa" lang="fa">فا</button><button data-lang="en">EN</button>
+      </div>
+    </div>
   </header>
 
   <nav class="nav">
-    <button class="nb primary" data-open="claude"><i>◆</i>CLAUDE CODE<span class="ext">↗</span></button>
-    <button class="nb" data-open="vault"><i>✱</i>VAULT</button>
-    <button class="nb" data-open="daily"><i>§</i>DAILY NOTE</button>
-    <button class="nb" data-open="runs"><i>¶</i>RUNS FOLDER</button>
-    <button class="nb" data-open="drafts"><i>※</i>DRAFTS</button>
-    <button class="nb" data-open="widget"><i>▣</i>WIDGET</button>
+    <button class="nb primary" data-open="claude"><i>◆</i><span data-i18n="claudeCode">CLAUDE CODE</span><span class="ext">↗</span></button>
+    <button class="nb" data-open="vault"><i>✱</i><span data-i18n="vaultBtn">VAULT</span></button>
+    <button class="nb" data-open="daily"><i>§</i><span data-i18n="dailyNote">DAILY NOTE</span></button>
+    <button class="nb" data-open="runs"><i>¶</i><span data-i18n="runsFolder">RUNS FOLDER</span></button>
+    <button class="nb" data-open="drafts"><i>※</i><span data-i18n="drafts">DRAFTS</span></button>
+    <button class="nb" data-open="widget"><i>▣</i><span data-i18n="widget">WIDGET</span></button>
   </nav>
 
   <section class="tiles">
@@ -37,14 +42,14 @@
 
   <section class="card chart-card">
     <div class="chart-head">
-      <span class="lbl">AGENTIC OS · CUMULATIVE ACTIVITY · 30D</span>
+      <span class="lbl" data-i18n="activity">AGENTIC OS · CUMULATIVE ACTIVITY · 30D</span>
       <span class="lbl" id="total"></span>
     </div>
     <div class="chart" id="chart"></div>
   </section>
 
   <section class="card integ">
-    <span class="accent-lbl">INTEGRATIONS</span>
+    <span class="accent-lbl" data-i18n="integrations">INTEGRATIONS</span>
     <span class="vsep"></span>
     <div class="integ-list" id="integ"></div>
   </section>
@@ -54,23 +59,23 @@
   <section class="bottom">
     <div class="card last" id="last"></div>
     <div class="card recent">
-      <div class="accent-lbl">RECENT RUNS</div>
+      <div class="accent-lbl" data-i18n="recentRuns">RECENT RUNS</div>
       <ul id="recent"></ul>
     </div>
   </section>
 
   <section class="block">
-    <div class="block-head"><span class="accent-lbl">SKILLS</span><span class="lbl" id="skills-note"></span></div>
+    <div class="block-head"><span class="accent-lbl" data-i18n="skills">SKILLS</span><span class="lbl" id="skills-note"></span></div>
     <div class="domains" id="skills"></div>
   </section>
 
   <section class="duo">
     <div class="card list-card">
-      <div class="accent-lbl">UPCOMING · 24H</div>
+      <div class="accent-lbl" data-i18n="upcoming">UPCOMING · 24H</div>
       <ul id="upcoming"></ul>
     </div>
     <div class="card list-card">
-      <div class="accent-lbl">VAULT CHANGES · 48H</div>
+      <div class="accent-lbl" data-i18n="changes">VAULT CHANGES · 48H</div>
       <ul id="changes"></ul>
     </div>
   </section>
@@ -79,16 +84,17 @@
 <div class="modal" id="modal" hidden>
   <div class="card modal-box" role="dialog" aria-modal="true" aria-labelledby="m-title">
     <div class="lbl" id="m-title"></div>
-    <p class="m-desc" id="m-desc"></p>
+    <p class="m-desc" id="m-desc" dir="auto"></p>
     <div class="tiers" id="m-tiers" role="radiogroup" aria-label="Model"></div>
-    <textarea id="m-prompt" spellcheck="false" rows="7"></textarea>
+    <textarea id="m-prompt" spellcheck="false" rows="7" dir="ltr"></textarea>
     <div class="m-actions">
-      <button class="nb" id="m-cancel">CANCEL</button>
-      <button class="nb primary" id="m-run"><i>▸</i>RUN HEADLESS</button>
+      <button class="nb" id="m-cancel"><span data-i18n="cancel">CANCEL</span></button>
+      <button class="nb primary" id="m-run"><i>▸</i><span data-i18n="runHeadless">RUN HEADLESS</span></button>
     </div>
   </div>
 </div>
 <div class="toast" id="toast" hidden></div>
+<script src="/i18n.js"></script>
 <script src="/app.js"></script>
 </body>
 </html>

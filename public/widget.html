@@ -7,13 +7,13 @@
 <link rel="icon" href="/robot.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Vazirmatn:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/app.css">
 <style>
   html, body.widget { background: transparent; }
   body.widget { margin: 0; padding: 0; overflow: hidden; user-select: none; }
   .w-card {
-    width: 340px; padding: 12px 14px 14px;
+    width: 340px; padding: 12px 14px 14px; overflow: hidden;
     background: rgba(20, 20, 20, .95); border: 1px solid var(--line); border-radius: 4px;
   }
   .w-head { display: flex; align-items: center; gap: 10px; -webkit-app-region: drag; }
@@ -59,16 +59,23 @@
   .w-offline { margin-top: 14px; }
   .w-offline b { font-size: 15px; }
   .w-offline p { color: var(--mute); font-size: 10px; margin: 4px 0 0; }
+  .w-head { direction: ltr; }
+  .w-tiles .row > * { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .w-tiles .row .lbl { flex-shrink: 0; }
+  html[lang="fa"] .w-skill { font-size: 12px; text-align: right; }
+  html[lang="fa"] .w-next, html[lang="fa"] .w-last .stats { font-size: 11.5px; }
+  html[lang="fa"] .w-tiles .lbl, html[lang="fa"] .w-tiles .rt, html[lang="fa"] .w-tiles .mid { font-size: 11.5px; }
+  html[lang="fa"] .w-last .status { font-size: 17px; }
 </style>
 </head>
 <body class="widget">
 <div class="w-card" id="card">
   <header class="w-head">
     <img src="/robot.svg" alt="">
-    <span class="w-title"><span class="a">AGENTIC</span><span class="o">OS</span></span>
+    <span class="w-title keep-ls"><span class="a">AGENTIC</span><span class="o">OS</span></span>
     <span class="w-dot" id="online"></span>
-    <button class="w-icon" id="w-open" title="Open dashboard">↗</button>
-    <button class="w-icon" id="w-close" title="Hide widget">×</button>
+    <button class="w-icon" id="w-open" data-i18n-title="openDashboard" title="Open dashboard">↗</button>
+    <button class="w-icon" id="w-close" data-i18n-title="hideWidget" title="Hide widget">×</button>
   </header>
   <div id="body">
     <div class="w-tiles">
@@ -79,14 +86,15 @@
     <div class="w-sep"></div>
     <div class="w-last" id="last"></div>
     <div class="w-next" id="next"></div>
-    <div class="accent-lbl" style="margin-top:14px">SKILLS</div>
+    <div class="accent-lbl" style="margin-top:14px" data-i18n="skills">SKILLS</div>
     <div class="w-skills" id="skills"></div>
   </div>
   <div class="w-offline" id="offline" hidden>
-    <b>DASHBOARD OFFLINE</b>
-    <p>The Agentic OS server is not reachable.</p>
+    <b data-i18n="offlineTitle">DASHBOARD OFFLINE</b>
+    <p data-i18n="offlineText">The Agentic OS server is not reachable.</p>
   </div>
 </div>
+<script src="/i18n.js"></script>
 <script src="/widget.js"></script>
 </body>
 </html>

@@ -4,4 +4,7 @@ data/
 # Personal config (vault path); config.example.json is the template
 config.json
 
+# Guide built from screenshots of real data
+docs/
+
 node_modules/

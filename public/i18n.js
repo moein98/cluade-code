@@ -1,0 +1,109 @@
+// UI strings (English / Persian) and locale-aware formatting, shared by the dashboard and widget.
+// The language is a server setting (POST /api/settings), so the dashboard, widget and tray agree.
+const I18N = (() => {
+  const S = {
+    en: {
+      vault: "VAULT", plan: "PLAN", limits: "LIMITS", live: "LIVE", est: "EST", permissions: "PERMISSIONS",
+      liveTip: "Usage from claude.ai (same as /usage)",
+      claudeCode: "CLAUDE CODE", vaultBtn: "VAULT", dailyNote: "DAILY NOTE", runsFolder: "RUNS FOLDER",
+      drafts: "DRAFTS", widget: "WIDGET",
+      fiveHour: "5-HOUR WINDOW", weekly: "WEEKLY WINDOW", routines: "ROUTINES", resets: "RESETS",
+      sessions: "SESSIONS", today: "TODAY", flat: "FLAT",
+      activity: "AGENTIC OS · CUMULATIVE ACTIVITY · 30D", day: "DAY", total: "TOTAL",
+      integrations: "INTEGRATIONS", checking: "CHECKING…", noneConnected: "NONE CONNECTED",
+      lastRun: "LAST RUN", idle: "IDLE", noRunsPick: "NO RUNS YET · PICK A SKILL BELOW", noRuns: "NO RUNS YET",
+      openInObsidian: "OPEN IN OBSIDIAN", started: "STARTED", in: "IN", out: "OUT",
+      COMPLETE: "COMPLETE", RUNNING: "RUNNING", FAILED: "FAILED", manual: "MANUAL", schedule: "SCHEDULE",
+      recentRuns: "RECENT RUNS", skills: "SKILLS", skillsNote: "{n} SKILLS · CLICK TO RUN HEADLESS",
+      noSkills: "NO SKILLS FOUND IN VAULT/.CLAUDE/SKILLS",
+      onDemand: "ON DEMAND", daily: "DAILY", run: "▸ RUN",
+      upcoming: "UPCOMING · 24H", nothingScheduled: "NOTHING SCHEDULED", inTime: "IN {d}", cloud: "CLOUD",
+      changes: "VAULT CHANGES · 48H", noChanges: "NO CHANGES",
+      cancel: "CANCEL", runHeadless: "RUN HEADLESS", startedOn: "{label} started on {model} — running headless",
+      offline: "Dashboard offline: {e}", next: "NEXT", clickToRun: "CLICK TO RUN",
+      offlineTitle: "DASHBOARD OFFLINE", offlineText: "The Agentic OS server is not reachable.",
+      openDashboard: "Open dashboard", hideWidget: "Hide widget", defaultModel: "DEFAULT",
+      dur: (d, h, m) => (d ? `${d}D ${h}H` : `${h}H ${String(m).padStart(2, "0")}M`),
+      durShort: (d, h, m) => (d ? `${d}D ${h}H` : `${h}H ${String(m).padStart(2, "0")}M`),
+      days: { sun: "SUN", mon: "MON", tue: "TUE", wed: "WED", thu: "THU", fri: "FRI", sat: "SAT" },
+      domains: {},
+      tiers: {},
+    },
+    fa: {
+      vault: "مخزن", plan: "پلن", limits: "سقف‌ها", live: "زنده", est: "تخمینی", permissions: "دسترسی",
+      liveTip: "مصرف از claude.ai (همان عدد ‎/usage‎)",
+      claudeCode: "Claude Code", vaultBtn: "مخزن", dailyNote: "یادداشت روزانه", runsFolder: "پوشهٔ اجراها",
+      drafts: "پیش‌نویس‌ها", widget: "ویجت",
+      fiveHour: "پنجرهٔ ۵ ساعته", weekly: "پنجرهٔ هفتگی", routines: "روتین‌ها", resets: "ریست",
+      sessions: "جلسه", today: "امروز", flat: "ثابت",
+      activity: "AGENTIC OS · فعالیت تجمعی · ۳۰ روز", day: "روز", total: "مجموع",
+      integrations: "اتصال‌ها", checking: "در حال بررسی…", noneConnected: "اتصالی نیست",
+      lastRun: "آخرین اجرا", idle: "بیکار", noRunsPick: "هنوز اجرایی نیست · یک مهارت را از پایین انتخاب کن",
+      noRuns: "هنوز اجرایی نیست",
+      openInObsidian: "باز کردن در Obsidian", started: "شروع", in: "ورودی", out: "خروجی",
+      COMPLETE: "انجام شد", RUNNING: "در حال اجرا", FAILED: "ناموفق", manual: "دستی", schedule: "زمان‌بندی",
+      recentRuns: "اجراهای اخیر", skills: "مهارت‌ها", skillsNote: "{n} مهارت · کلیک برای اجرا در پس‌زمینه",
+      noSkills: "مهارتی در ‎.claude/skills‎ مخزن پیدا نشد",
+      onDemand: "دستی", daily: "روزانه", run: "▸ اجرا",
+      upcoming: "برنامهٔ ۲۴ ساعت آینده", nothingScheduled: "چیزی زمان‌بندی نشده", inTime: "{d} دیگر", cloud: "ابری",
+      changes: "تغییرات مخزن · ۴۸ ساعت", noChanges: "تغییری نیست",
+      cancel: "انصراف", runHeadless: "اجرا در پس‌زمینه", startedOn: "{label} با {model} شروع شد — در پس‌زمینه",
+      offline: "داشبورد در دسترس نیست: {e}", next: "بعدی", clickToRun: "دوباره کلیک کن",
+      offlineTitle: "داشبورد خاموش است", offlineText: "سرور Agentic OS در دسترس نیست.",
+      openDashboard: "باز کردن داشبورد", hideWidget: "پنهان کردن ویجت", defaultModel: "پیش‌فرض",
+      dur: (d, h, m) => (d ? `${d} روز و ${h} ساعت` : h ? `${h} ساعت و ${m} دقیقه` : `${m} دقیقه`),
+      durShort: (d, h, m) => (d ? `${d} روز ${h} س` : `${h} س ${m} د`),
+      days: { sun: "یکشنبه", mon: "دوشنبه", tue: "سه‌شنبه", wed: "چهارشنبه", thu: "پنجشنبه", fri: "جمعه", sat: "شنبه" },
+      domains: { Memory: "حافظه", Productivity: "بهره‌وری", Research: "تحقیق", Trading: "معامله‌گری", Projects: "پروژه‌ها", Other: "سایر" },
+      tiers: { light: "سبک", standard: "استاندارد", heavy: "سنگین" },
+    },
+  };
+  const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+  // Jalali dates with Latin digits, e.g. "9 مهر"
+  const jalali = new Intl.DateTimeFormat("fa-IR-u-ca-persian-nu-latn", { day: "numeric", month: "long" });
+
+  let lang = "en";
+  const pad = (n) => String(n).padStart(2, "0");
+
+  function t(key, vars) {
+    let s = (S[lang] && S[lang][key]) ?? S.en[key] ?? key;
+    if (vars) for (const [k, v] of Object.entries(vars)) s = s.replaceAll(`{${k}}`, v);
+    return s;
+  }
+
+  function set(next) {
+    lang = S[next] ? next : "en";
+    document.documentElement.lang = lang;
+    document.documentElement.dir = lang === "fa" ? "rtl" : "ltr";
+    document.querySelectorAll("[data-i18n]").forEach((el) => (el.textContent = t(el.dataset.i18n)));
+    document.querySelectorAll("[data-i18n-title]").forEach((el) => (el.title = t(el.dataset.i18nTitle)));
+    document.querySelectorAll("[data-lang]").forEach((el) => el.setAttribute("aria-pressed", el.dataset.lang === lang));
+  }
+
+  const hm = (ts) => {
+    const d = new Date(ts);
+    return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+  function dur(ms, short) {
+    if (ms == null) return "—";
+    const m = Math.max(0, Math.round(ms / 60000));
+    return S[lang][short ? "durShort" : "dur"](Math.floor(m / 1440), Math.floor((m % 1440) / 60), m % 60);
+  }
+  // "2026-10-01" -> "OCT 01" / "9 مهر"
+  function dayLabel(iso) {
+    const [y, m, d] = iso.split("-").map(Number);
+    return lang === "fa" ? jalali.format(new Date(y, m - 1, d)) : `${MONTHS[m - 1]} ${pad(d)}`;
+  }
+  function when(ts) {
+    const d = new Date(ts);
+    if (d.toDateString() === new Date().toDateString()) return `${t("today")} ${hm(ts)}`;
+    return lang === "fa" ? `${jalali.format(d)} ${hm(ts)}` : `${MONTHS[d.getMonth()]} ${pad(d.getDate())} ${hm(ts)}`;
+  }
+  const dayName = (d) => S[lang].days[d] || d.toUpperCase();
+  const domain = (d) => S[lang].domains[d] || d;
+  const tier = (x) => S[lang].tiers[x] || String(x || "").toUpperCase();
+  // Skill display name: a translation from config (skill.labels.fa) when there is one.
+  const skillLabel = (skill, fallback) => (skill && skill.labels && skill.labels[lang]) || (skill && skill.label) || fallback || "";
+
+  return { t, set, lang: () => lang, hm, dur, dayLabel, when, dayName, domain, tier, skillLabel };
+})();

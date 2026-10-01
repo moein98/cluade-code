@@ -22,6 +22,10 @@ start.cmd            ← سرور را روشن می‌کند و مرورگر ر
 
 برای اینکه routineهای زمان‌بندی‌شده خودکار اجرا شوند، سرور باید روشن باشد. برای اجرای خودکار هنگام ورود به ویندوز: `Win+R` → `shell:startup` → یک shortcut از `start-hidden.vbs` آنجا بگذارید (بدون پنجره اجرا می‌شود، لاگ در `data\server.log`).
 
+## زبان
+
+فارسی (راست‌به‌چپ، تاریخ شمسی) و انگلیسی. زبان با دکمهٔ **فا / EN** در سربرگ داشبورد عوض می‌شود. این تنظیم سمت سرور ذخیره می‌شود (`data/ui.json`)، پس ویجت و منوی tray هم همراهش عوض می‌شوند. زبان پیش‌فرض در `config.json → language` است و نام فارسی هر مهارت در `skills[].labels.fa`.
+
 ## اپ دسکتاپ (Electron)
 
 ```
@@ -88,8 +92,8 @@ Claude Code Routines در سرورهای Anthropic اجرا می‌شوند، ح
 | سطح | مدل | skillها |
 |---|---|---|
 | `light` | Haiku 4.5 | project-pulse — خواندن و خلاصهٔ ساده |
-| `standard` | Sonnet 5.5 | vault-cleanup، morning-brief، inbox-brief، weekly-review، market-scan — جمع‌بندی و نوشتن |
-| `heavy` | Opus 5.5 | deep-research — تحقیق چندمنبعی و استدلال |
+| `standard` | Sonnet 5.5 | همهٔ مهارت‌های دیگر، از جمله deep-research — جمع‌بندی، نوشتن، تحقیق |
+| `heavy` | Opus 5.5 | پیش‌فرض هیچ مهارتی نیست؛ فقط با انتخاب دستی در پنجرهٔ اجرا |
 
 - skillی که `tier` نداشته باشد از `defaultTier` (پیش‌فرض `standard`) استفاده می‌کند؛ `model` مستقیم روی یک skill بر سطح آن اولویت دارد.
 - تست vault-cleanup: روی Opus ‏$1.12 و همهٔ مشکلات واقعی را پیدا کرد؛ روی Haiku ‏$0.18 ولی لینک‌های شکسته را ندید — به همین دلیل روی Sonnet است.
