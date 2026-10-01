@@ -194,18 +194,25 @@ function renderIntegrations(list) {
   }
   el.innerHTML = list
     .map((i) => {
-      // Clicking TELEGRAM sends a test message.
-      const test = i.name === "telegram" ? ` data-action="tg-test" role="button"` : "";
+      // Clicking TELEGRAM sends a test message; MEMORY MAP re-runs the map check.
+      const test = i.name === "telegram" ? ` data-action="tg-test" role="button"` : i.action ? ` data-action="${esc(i.action)}" role="button"` : "";
       return `<span class="integ-item${i.ok ? "" : " bad"}"${test} title="${esc(i.status)}"><bdi>${esc(i.name)}</bdi></span>`;
     })
     .join("");
 }
 
 $("#integ").addEventListener("click", async (e) => {
-  if (!e.target.closest('[data-action="tg-test"]')) return;
+  const a = e.target.closest("[data-action]");
+  if (!a) return;
   try {
-    await post("/api/telegram/test");
-    toast("Telegram ✓");
+    if (a.dataset.action === "tg-test") {
+      await post("/api/telegram/test");
+      toast("Telegram ✓");
+    } else if (a.dataset.action === "map-check") {
+      const r = await post("/api/map/check");
+      toast(t("mapChecked", { result: r.ok ? "✓" : r.problems.slice(0, 3).join(" | ") }), !r.ok);
+      load();
+    }
   } catch (err) {
     toast(err.message, true);
   }

@@ -15,6 +15,8 @@ const { createLearnings } = require("./lib/learnings");
 const { createQuality } = require("./lib/quality");
 const { createSearch } = require("./lib/search");
 const { createSessions } = require("./lib/sessions");
+const { checkMap } = require("./lib/mapcheck");
+const { buildBrain } = require("./lib/brain");
 const limits = require("./lib/limits");
 
 const ROOT = __dirname;
@@ -86,6 +88,47 @@ function checkQuality(run, skill, result) {
   });
 }
 
+// Memory map check (deterministic): on start and nightly; problems go to Telegram once a day.
+let mapState = null;
+let mapAlertDay = "";
+function runMapCheck(alert) {
+  mapState = checkMap(vault);
+  const today = dayKey(new Date());
+  if (alert && !mapState.ok && mapAlertDay !== today && telegram) {
+    mapAlertDay = today;
+    const fa = uiSettings().language === "fa";
+    telegram.send(`🗺️ ${fa ? "نقشهٔ حافظه مشکل دارد" : "Memory map problems"} (${mapState.problems.length}):\n${mapState.problems.slice(0, 8).join("\n")}`);
+  }
+  return mapState;
+}
+
+// Brain view graph, cached briefly; its node paths are the only ones /api/open/path may open.
+let brainCache = null;
+function brain() {
+  if (!brainCache || Date.now() - brainCache.builtAt > 60e3) {
+    brainCache = buildBrain({
+      vault,
+      map: mapState || runMapCheck(false),
+      skills: runner.skills(),
+      runs: runner.list(),
+      cloudRoutines: cfg.cloudRoutines,
+    });
+  }
+  return brainCache;
+}
+
+// Telegram /note: append a line to today's daily note (append-only, no AI).
+function addNoteFromTelegram(text) {
+  const d = new Date();
+  const rel = path.posix.join(cfg.vault.dailyFolder || "", `${dayKey(d)}.md`);
+  const abs = insideVault(rel);
+  const heading = "## 📥 از تلگرام";
+  const old = fs.existsSync(abs) ? fs.readFileSync(abs, "utf8") : "";
+  const prefix = old.includes(heading) ? "" : `${old && !old.endsWith("\n") ? "\n" : ""}\n${heading}\n`;
+  fs.appendFileSync(abs, `${prefix}- ${pad(d.getHours())}:${pad(d.getMinutes())} ${text.replace(/\s+/g, " ").trim()}\n`, "utf8");
+  return rel;
+}
+
 // Telegram alert when live plan usage crosses a threshold (once per window and threshold).
 const ALERTS_FILE = path.join(DATA, "alerts.json");
 function checkQuotaAlerts() {
@@ -130,6 +173,8 @@ const STATIC = {
   "/widget": ["widget.html", "text/html; charset=utf-8"],
   "/widget.js": ["widget.js", "text/javascript; charset=utf-8"],
   "/i18n.js": ["i18n.js", "text/javascript; charset=utf-8"],
+  "/brain": ["brain.html", "text/html; charset=utf-8"],
+  "/brain.js": ["brain.js", "text/javascript; charset=utf-8"],
   "/robot.svg": ["robot.svg", "image/svg+xml"],
 };
 
@@ -205,6 +250,10 @@ function integrationList() {
     const t = new Date(cloud.lastSync);
     const status = cloud.error || (cloud.lastSync ? `synced ${pad(t.getHours())}:${pad(t.getMinutes())}` : "pending");
     out.push({ name: "cloud sync", ok: !cloud.error, status });
+  }
+  if (mapState) {
+    const status = mapState.ok ? "OK" : `${mapState.problems.length} problem(s): ${mapState.problems.slice(0, 3).join(" | ")}`;
+    out.push({ name: "memory map", ok: mapState.ok, status, action: "map-check" });
   }
   const tg = telegram.status();
   if (tg.enabled) {
@@ -385,10 +434,16 @@ async function onTelegramCommand(text) {
   const fa = uiSettings().language === "fa";
   const L = (f, e) => (fa ? f : e);
   const help = L(
-    "دستورها:\n/status — مصرف، آخرین اجرا، صندوق\n/run <مهارت> — اجرای مهارت (با force از محافظ سهمیه رد می‌شود)\n/skills — فهرست مهارت‌ها\n/inbox — موارد تازه",
-    "Commands:\n/status — usage, last run, inbox\n/run <skill> — run a skill (add force to bypass the quota guard)\n/skills — list skills\n/inbox — new items"
+    "دستورها:\n/status — مصرف، آخرین اجرا، صندوق\n/run <مهارت> — اجرای مهارت (با force از محافظ سهمیه رد می‌شود)\n/note <متن> — یادداشت در یادداشت روزانه\n/skills — فهرست مهارت‌ها\n/inbox — موارد تازه",
+    "Commands:\n/status — usage, last run, inbox\n/run <skill> — run a skill (add force to bypass the quota guard)\n/note <text> — add to today's daily note\n/skills — list skills\n/inbox — new items"
   );
   if (cmd === "/start" || cmd === "/help") return help;
+  if (cmd === "/note") {
+    const note = text.slice(raw.length).trim();
+    if (!note) return L("متن یادداشت را بعد از /note بنویس.", "Write the note after /note.");
+    const rel = addNoteFromTelegram(note);
+    return L(`📝 در ${rel} ذخیره شد.`, `📝 Saved to ${rel}.`);
+  }
   const s = state();
   if (cmd === "/status") {
     const pct = (x) => (x.pct != null ? `${Math.round(x.pct)}%` : "—");
@@ -430,6 +485,21 @@ function openTarget(what, body) {
     case "remote":
       openRemoteControl();
       break;
+    case "path": {
+      // Only paths that appear in the Brain graph (the memory map, notes, skills, runs).
+      const p = String(body.path || "");
+      if (!p || !brain().nodes.some((n) => n.path && path.normalize(n.path) === path.normalize(p))) throw new Error("path is not on the map");
+      if (!fs.existsSync(p)) throw new Error("path not found");
+      const relToVault = path.relative(vault, p);
+      if (!relToVault.startsWith("..") && !path.isAbsolute(relToVault) && /\.md$/i.test(p)) {
+        detached("explorer.exe", [obsidianUri(relToVault)]);
+      } else if (fs.statSync(p).isDirectory()) {
+        detached("explorer.exe", [p]);
+      } else {
+        detached("explorer.exe", [`/select,${p}`]);
+      }
+      break;
+    }
     case "resume": {
       const id = String(body.session || "");
       if (!/^[0-9a-f-]{36}$/.test(id)) throw new Error("bad session id");
@@ -508,6 +578,7 @@ const server = http.createServer(async (req, res) => {
     try {
       if (url.pathname === "/api/sessions") return send(res, 200, q ? sessions.search(q) : sessions.list(30));
       if (url.pathname === "/api/search") return send(res, 200, vaultSearch.search(q, 12));
+      if (url.pathname === "/api/brain") return send(res, 200, brain());
     } catch (e) {
       return send(res, 500, { error: e.message });
     }
@@ -534,6 +605,11 @@ const server = http.createServer(async (req, res) => {
       if ((m = /^\/api\/open\/(\w+)$/.exec(url.pathname))) return send(res, 200, openTarget(m[1], body));
       if (url.pathname === "/api/settings") return send(res, 200, saveUiSettings(body));
       if (url.pathname === "/api/feedback") return send(res, 200, giveFeedback(body));
+      if (url.pathname === "/api/map/check") {
+        const r = runMapCheck(false);
+        brainCache = null;
+        return send(res, 200, { ok: r.ok, problems: r.problems });
+      }
       if (url.pathname === "/api/skills") return send(res, 200, createSkill(body));
       if (url.pathname === "/api/inbox/read") {
         if (body.all === true) inbox.markAll();
@@ -583,6 +659,16 @@ function start(options = {}) {
       telegram.startCommands(onTelegramCommand);
       setInterval(checkQuotaAlerts, 2 * 60e3);
       setTimeout(checkQuotaAlerts, 20e3);
+      // Map check: now, then nightly at 03:00 with a Telegram alert on problems.
+      setTimeout(() => runMapCheck(false), 3e3);
+      let mapCheckedDay = "";
+      setInterval(() => {
+        const d = new Date();
+        if (d.getHours() === 3 && mapCheckedDay !== dayKey(d)) {
+          mapCheckedDay = dayKey(d);
+          runMapCheck(true);
+        }
+      }, 10 * 60e3);
       if (cfg.remoteControl && cfg.remoteControl.autoStart) setTimeout(() => openRemoteControl(true), 8e3);
       watchers = createWatchers(cfg, DATA, runner);
       integrations = createIntegrations(cfg);

@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Agentic OS Brain</title>
+<link rel="icon" href="/robot.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Vazirmatn:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/app.css">
+<style>
+  body.brain { overflow: hidden; }
+  #cv { position: fixed; inset: 0; width: 100vw; height: 100vh; cursor: grab; }
+  #cv.drag { cursor: grabbing; }
+  #cv.point { cursor: pointer; }
+  #bar {
+    position: fixed; top: 0; inset-inline: 0; z-index: 5;
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+    padding: 10px 16px; background: rgba(14, 14, 14, .92); border-bottom: 1px solid var(--line);
+  }
+  #bar .nb { height: 30px; text-decoration: none; }
+  .b-title { font-size: 18px; font-weight: 700; letter-spacing: .1em; margin-inline: 6px 10px; direction: ltr; }
+  .b-title .a { color: #c9c6c0; }
+  .b-title .o { color: var(--orange); }
+  #modes { margin: 0; }
+  #q { width: 230px; margin: 0; }
+  #results {
+    position: fixed; top: 54px; z-index: 6; width: 320px; inset-inline-end: 16px;
+    background: #0b0b0b; border: 1px solid var(--line); border-radius: 2px; max-height: 50vh; overflow: auto;
+  }
+  #results:empty { display: none; }
+  #results li { padding: 7px 10px; border-top: 1px solid var(--line-soft); cursor: pointer; font-size: 12px; }
+  #results li:hover { background: #1a120e; }
+  #results small { display: block; color: var(--mute); font-size: 10px; direction: ltr; text-align: start; }
+  #legend {
+    position: fixed; bottom: 14px; inset-inline-start: 16px; z-index: 5;
+    display: flex; flex-wrap: wrap; gap: 6px; max-width: 70vw;
+  }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px; padding: 4px 9px; cursor: pointer;
+    background: rgba(17, 17, 17, .9); border: 1px solid var(--line); border-radius: 2px; font-size: 11px; color: var(--ink-2);
+  }
+  .chip i { width: 8px; height: 8px; border-radius: 50%; }
+  .chip.on { border-color: var(--orange); color: var(--ink); }
+  .chip.off { opacity: .45; }
+  #card {
+    position: fixed; top: 70px; inset-inline-end: 16px; z-index: 6; width: 340px; padding: 14px;
+  }
+  #card h3 { margin: 4px 0 6px; font-size: 15px; }
+  #card .path { font-size: 10.5px; color: var(--mute); direction: ltr; text-align: start; word-break: break-all; margin: 8px 0 10px; }
+  #card .note { font-size: 12px; color: var(--ink-2); line-height: 1.6; }
+  #card .acts { display: flex; gap: 6px; flex-wrap: wrap; }
+  #card .acts .nb { height: 28px; padding: 0 10px; font-size: 11px; }
+  #stats { position: fixed; bottom: 14px; inset-inline-end: 16px; z-index: 5; font-size: 10.5px; color: var(--dim); }
+  html[lang="fa"] .chip { font-size: 12px; }
+</style>
+</head>
+<body class="brain">
+<canvas id="cv"></canvas>
+<div id="bar">
+  <a class="nb" href="/"><span data-i18n="backToDash">← DASHBOARD</span></a>
+  <span class="b-title keep-ls"><span class="a">AGENTIC</span><span class="o">OS</span></span>
+  <div class="tiers" id="modes" role="radiogroup" aria-label="View"></div>
+  <input class="search" id="q" type="search" data-i18n-ph="brainSearch" autocomplete="off">
+  <label class="chk"><input type="checkbox" id="names" checked><span data-i18n="names">NAMES</span></label>
+  <label class="chk"><input type="checkbox" id="motion" checked><span data-i18n="motion">MOTION</span></label>
+  <button class="nb" id="fit"><span data-i18n="fit">FIT</span></button>
+</div>
+<ul id="results"></ul>
+<div id="legend"></div>
+<div id="card" class="card" hidden></div>
+<div id="stats"></div>
+<div class="toast" id="toast" hidden></div>
+<script src="/i18n.js"></script>
+<script src="/brain.js"></script>
+</body>
+</html>
