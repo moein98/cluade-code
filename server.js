@@ -706,6 +706,7 @@ function start(options = {}) {
       telegram = createTelegram(cfg, DATA, { language: () => uiSettings().language });
       runner = createRunner(cfg, DATA, {
         guard: quotaGuard,
+        language: () => uiSettings().language,
         onFinish: (run, skill, result) => {
           invalidate();
           telegram.onRun(run, labelFor(skill.name, skill.label), result, skill);
