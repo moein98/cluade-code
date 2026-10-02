@@ -157,11 +157,18 @@ function checkQuotaAlerts() {
     ["week", live.weekly, a.weekly || [75, 90], "هفتگی", "weekly"],
   ]) {
     if (!win) continue;
-    for (const th of thresholds) {
-      const id = `${key}:${win.resetsAt}:${th}`;
-      if (win.pct < th || sent[id]) continue;
-      sent[id] = Date.now();
+    // resetsAt is a few hundred ms different on every read, so a window is matched by a reset
+    // within 15 minutes, not by the exact value. Several thresholds crossed at once: one message.
+    const sameWindow = (th) =>
+      Object.keys(sent).some((id) => {
+        const [k, t, h] = id.split(":");
+        return k === key && Number(h) === th && Math.abs(Number(t) - win.resetsAt) < 15 * 60e3;
+      });
+    const crossed = thresholds.filter((th) => win.pct >= th && !sameWindow(th));
+    for (const th of crossed) sent[`${key}:${win.resetsAt}:${th}`] = Date.now();
+    if (crossed.length) {
       changed = true;
+      const th = Math.max(...crossed);
       const r = new Date(win.resetsAt);
       const when = key === "week" ? `${dayKey(r)} ${pad(r.getHours())}:${pad(r.getMinutes())}` : `${pad(r.getHours())}:${pad(r.getMinutes())}`;
       telegram.send(
