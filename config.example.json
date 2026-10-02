@@ -236,6 +236,7 @@
     ],
     "notifyFailures": true,
     "commands": true,
+    "cards": true,
     "sendCloudReports": false
   },
   "inbox": {

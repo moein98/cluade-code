@@ -9,6 +9,7 @@ const { createRunner } = require("./lib/runner");
 const { createIntegrations } = require("./lib/integrations");
 const { createCloudSync } = require("./lib/cloudsync");
 const { createTelegram } = require("./lib/telegram");
+const { createTgApp } = require("./lib/tgapp");
 const { createInbox } = require("./lib/inbox");
 const { createWatchers } = require("./lib/watcher");
 const { createLearnings } = require("./lib/learnings");
@@ -94,7 +95,14 @@ function checkQuality(run, skill, result) {
     runner.updateRun(run.id, { check });
     console.log(`[quality] ${skill.name}: ${check.pass === true ? "pass" : check.pass === false ? "FAIL" : "unknown"}`);
     if (check.pass === false) {
-      telegram.send(`⚠️ ${labelFor(skill.name, skill.label)} — ${uiSettings().language === "fa" ? "کیفیت قبول نشد" : "quality check failed"}\n${check.failed.join("\n")}`);
+      const fa = uiSettings().language === "fa";
+      telegram.notice({
+        emoji: "⚠️",
+        title: `${labelFor(skill.name, skill.label)} — ${fa ? "کیفیت قبول نشد" : "quality check failed"}`,
+        lines: check.failed,
+        tone: "warn",
+        crumb: fa ? "کنترل کیفیت" : "Quality check",
+      });
     }
   });
 }
@@ -108,7 +116,13 @@ function runMapCheck(alert) {
   if (alert && !mapState.ok && mapAlertDay !== today && telegram) {
     mapAlertDay = today;
     const fa = uiSettings().language === "fa";
-    telegram.send(`🗺️ ${fa ? "نقشهٔ حافظه مشکل دارد" : "Memory map problems"} (${mapState.problems.length}):\n${mapState.problems.slice(0, 8).join("\n")}`);
+    telegram.notice({
+      emoji: "🗺️",
+      title: `${fa ? "نقشهٔ حافظه مشکل دارد" : "Memory map problems"} (${mapState.problems.length})`,
+      lines: mapState.problems.slice(0, 8),
+      tone: "warn",
+      crumb: fa ? "نقشهٔ حافظه" : "Memory map",
+    });
   }
   return mapState;
 }
@@ -171,11 +185,13 @@ function checkQuotaAlerts() {
       const th = Math.max(...crossed);
       const r = new Date(win.resetsAt);
       const when = key === "week" ? `${dayKey(r)} ${pad(r.getHours())}:${pad(r.getMinutes())}` : `${pad(r.getHours())}:${pad(r.getMinutes())}`;
-      telegram.send(
-        fa
-          ? `⚠️ مصرف ${nameFa} Claude به ${Math.round(win.pct)}٪ رسید (هشدار ${th}٪). ریست: ${when}`
-          : `⚠️ Claude ${nameEn} usage is at ${Math.round(win.pct)}% (alert ${th}%). Resets ${when}`
-      );
+      telegram.notice({
+        emoji: "⚠️",
+        title: fa ? `مصرف ${nameFa} Claude به ${Math.round(win.pct)}٪ رسید` : `Claude ${nameEn} usage is at ${Math.round(win.pct)}%`,
+        lines: fa ? [`هشدار ${th}٪`, `ریست: ${when}`] : [`Alert at ${th}%`, `Resets ${when}`],
+        tone: th >= 90 ? "bad" : "warn",
+        crumb: fa ? "سهمیه" : "Quota",
+      });
     }
   }
   if (changed) {
@@ -473,56 +489,6 @@ function createSkill(b) {
   return entry;
 }
 
-// Telegram bot commands (only from the configured chat).
-async function onTelegramCommand(text) {
-  const [raw, ...args] = text.split(/\s+/);
-  const cmd = raw.toLowerCase().replace(/@\S+$/, "");
-  const fa = uiSettings().language === "fa";
-  const L = (f, e) => (fa ? f : e);
-  const help = L(
-    "دستورها:\n/status — مصرف، آخرین اجرا، صندوق\n/run <مهارت> — اجرای مهارت (با force از محافظ سهمیه رد می‌شود)\n/note <متن> — یادداشت در یادداشت روزانه\n/skills — فهرست مهارت‌ها\n/inbox — موارد تازه",
-    "Commands:\n/status — usage, last run, inbox\n/run <skill> — run a skill (add force to bypass the quota guard)\n/note <text> — add to today's daily note\n/skills — list skills\n/inbox — new items"
-  );
-  if (cmd === "/start" || cmd === "/help") return help;
-  if (cmd === "/note") {
-    const note = text.slice(raw.length).trim();
-    if (!note) return L("متن یادداشت را بعد از /note بنویس.", "Write the note after /note.");
-    const rel = addNoteFromTelegram(note);
-    return L(`📝 در ${rel} ذخیره شد.`, `📝 Saved to ${rel}.`);
-  }
-  const s = cachedState();
-  if (cmd === "/status") {
-    const pct = (x) => (x.pct != null ? `${Math.round(x.pct)}%` : "—");
-    const last = s.lastRun ? `${labelFor(s.lastRun.skill, s.lastRun.label)} · ${s.lastRun.status}` : "—";
-    const next = s.upcoming[0] ? `${labelFor(s.upcoming[0].skill, s.upcoming[0].label)} ${new Date(s.upcoming[0].at).toTimeString().slice(0, 5)}` : "—";
-    return L(
-      `📊 مصرف ۵ ساعته: ${pct(s.fiveHour)} · هفتگی: ${pct(s.weekly)}\nاجرای امروز: ${s.routines.runsToday}\nآخرین اجرا: ${last}\nبعدی: ${next}\nصندوق: ${s.inbox.count} مورد تازه`,
-      `📊 5-hour: ${pct(s.fiveHour)} · weekly: ${pct(s.weekly)}\nRuns today: ${s.routines.runsToday}\nLast run: ${last}\nNext: ${next}\nInbox: ${s.inbox.count} new`
-    );
-  }
-  if (cmd === "/skills") return s.skills.map((k) => `• ${k.name} — ${labelFor(k.name, k.label)}`).join("\n");
-  if (cmd === "/inbox") {
-    return s.inbox.items.length
-      ? s.inbox.items.slice(0, 8).map((i) => `• ${i.kind === "run" ? labelFor(i.skill, i.title) : i.title}`).join("\n")
-      : L("چیز تازه‌ای نیست.", "Nothing new.");
-  }
-  if (cmd === "/run") {
-    const name = args[0];
-    if (!name) return L("اسم مهارت را بنویس، مثلاً /run vault-cleanup", "Name a skill, e.g. /run vault-cleanup");
-    const skill = s.skills.find((k) => k.name === name);
-    if (!skill) return L(`مهارت «${name}» نیست. /skills`, `No skill "${name}". /skills`);
-    if (skill.prompt.includes("<topic here>")) return L("این مهارت موضوع لازم دارد؛ از داشبورد اجرا کن.", "This skill needs a topic; run it from the dashboard.");
-    try {
-      runner.start(name, "telegram", undefined, undefined, { force: args[1] === "force" });
-      return L(`▶️ ${labelFor(name)} شروع شد. نتیجه همین‌جا می‌آید.`, `▶️ ${labelFor(name)} started. The result will come here.`);
-    } catch (e) {
-      if (e.code === "QUOTA") return L(`⛔ محافظ سهمیه: ${e.message}\nبرای اجرای اجباری: /run ${name} force`, `⛔ Quota guard: ${e.message}\nTo force: /run ${name} force`);
-      throw e;
-    }
-  }
-  return help;
-}
-
 function openTarget(what, body) {
   switch (what) {
     case "claude":
@@ -681,7 +647,7 @@ const server = http.createServer(async (req, res) => {
       }
       if (url.pathname === "/api/telegram/test") {
         if (!telegram.status().configured) throw new Error("Telegram is not configured (config.json → telegram)");
-        telegram.send("Agentic OS ✓ — Telegram test");
+        telegram.notice({ emoji: "✅", title: "Agentic OS ✓ — Telegram test", lines: [], tone: "ok", crumb: "Test" });
         return send(res, 200, { ok: true });
       }
       if (url.pathname === "/api/integrations/refresh") {
@@ -711,18 +677,30 @@ function start(options = {}) {
       usage.setCalibrationFile(path.join(DATA, "limits.json"));
       ollama.adopt();
       limits.refresh();
-      telegram = createTelegram(cfg, DATA);
+      telegram = createTelegram(cfg, DATA, { language: () => uiSettings().language });
       runner = createRunner(cfg, DATA, {
         guard: quotaGuard,
         onFinish: (run, skill, result) => {
           invalidate();
-          telegram.onRun(run, labelFor(skill.name, skill.label), result);
+          telegram.onRun(run, labelFor(skill.name, skill.label), result, skill);
           checkQuality(run, skill, result);
           if (hooks.onRunFinished) hooks.onRunFinished(run);
         },
       });
       inbox = createInbox(cfg, DATA, () => runner.list(), (rel) => skillForFile(rel));
-      telegram.startCommands(onTelegramCommand);
+      telegram.startCommands(
+        createTgApp({
+          state: () => {
+            invalidate();
+            return cachedState();
+          },
+          label: labelFor,
+          fa: () => uiSettings().language === "fa",
+          runSkill: (name, force) => runner.start(name, "telegram", undefined, undefined, { force }),
+          addNote: addNoteFromTelegram,
+          runsOf: (name) => runner.list().filter((r) => r.skill === name),
+        })
+      );
       setInterval(checkQuotaAlerts, 2 * 60e3);
       setTimeout(checkQuotaAlerts, 20e3);
       // Map check: now, then nightly at 03:00 with a Telegram alert on problems. The semantic
