@@ -311,5 +311,12 @@
     "host": "http://127.0.0.1:11434",
     "idleMin": 5,
     "gpu": false
+  },
+  "claudeProjects": {
+    "notesFolder": "claude-sessions",
+    "oldComputer": {
+      "before": "",
+      "homes": []
+    }
   }
 }

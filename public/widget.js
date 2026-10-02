@@ -123,6 +123,16 @@ function render() {
       })
       .join("");
   }
+  if (s && s.claude) {
+    // A click opens the Obsidian page: the project page, or the note written for the session.
+    const mark = (m) => `<span class="m${m === "old" ? " old" : ""}">${t(m === "old" ? "cpOld" : "cpThis")}</span>`;
+    $("#w-projects").innerHTML = s.claude.projects
+      .map((p) => `<button class="w-item" data-note="${esc(p.file)}" title="${esc(t("cpOpenHint"))}"><span class="n" dir="auto">${esc(p.name)}</span><span class="m">${t("cpSessionsN", { n: p.sessions })}</span></button>`)
+      .join("");
+    $("#w-sessions").innerHTML = s.claude.sessions
+      .map((x) => `<button class="w-item" data-note="${esc(x.note)}" title="${esc((x.project ? x.project + " · " : "") + t("cpOpenHint"))}"><span class="n" dir="auto">${esc(x.title)}</span>${mark(x.machine)}</button>`)
+      .join("");
+  }
   if (desktop) desktop.resize(document.getElementById("card").offsetHeight);
 }
 
@@ -186,6 +196,16 @@ $("#last").addEventListener("click", async () => {
   if (!note) return;
   try {
     await post("/api/open/note", { file: note });
+  } catch (err) {
+    showError(err.message);
+  }
+});
+
+document.addEventListener("click", async (e) => {
+  const b = e.target.closest(".w-item[data-note]");
+  if (!b) return;
+  try {
+    await post("/api/open/note", { file: b.dataset.note });
   } catch (err) {
     showError(err.message);
   }

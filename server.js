@@ -16,6 +16,7 @@ const { createLearnings } = require("./lib/learnings");
 const { createQuality } = require("./lib/quality");
 const { createSearch } = require("./lib/search");
 const { createSessions } = require("./lib/sessions");
+const { createProjects } = require("./lib/projects");
 const { checkMap } = require("./lib/mapcheck");
 const { createOllama } = require("./lib/ollama");
 const { createSemantic } = require("./lib/semantic");
@@ -45,6 +46,8 @@ const quality = createQuality(cfg, DATA);
 // vault.searchSkip: folders kept out of search, e.g. a raw archive already merged into the wiki.
 const vaultSearch = createSearch(vault, { skipDirs: [cfg.vault.runsFolder, ...(cfg.vault.searchSkip || [])] });
 const sessions = createSessions(usage.costOf, [DATA]); // quality checks run in data/
+// Claude projects and sessions of both computers, each linked to an Obsidian page.
+const claudeProjects = createProjects(cfg, vault, DATA, sessions);
 const ollama = createOllama(cfg, DATA);
 const semantic = createSemantic(cfg, DATA, ollama);
 // Vault search: hybrid (meaning + keywords) when semantic search is on and indexed, else keywords.
@@ -418,6 +421,17 @@ function state() {
     domains: cfg.domains || [],
     upcoming: [...runner.upcoming(), ...cloudUpcoming()].sort((a, b) => a.at - b.at),
     changes: vaultChanges(48),
+    claude: claudeSummary(),
+  };
+}
+
+// Widget-sized slice of the Claude projects list: recent projects and sessions.
+function claudeSummary() {
+  const c = claudeProjects.state();
+  return {
+    projects: c.projects.filter((x) => x.sessions).slice(0, 6),
+    sessions: c.sessions.slice(0, 5).map(({ id, title, machine, project, note, end }) => ({ id, title, machine, project, note, end })),
+    counts: { ...c.counts, projects: c.projects.length },
   };
 }
 
@@ -592,6 +606,7 @@ const server = http.createServer(async (req, res) => {
     if (st) return send(res, 200, fs.readFileSync(path.join(APP, "public", st[0])), st[1]);
     const q = url.searchParams.get("q") || "";
     try {
+      if (url.pathname === "/api/projects") return send(res, 200, claudeProjects.state());
       if (url.pathname === "/api/sessions") return send(res, 200, q ? sessions.search(q) : sessions.list(30));
       if (url.pathname === "/api/search") {
         const n = Math.min(20, Math.max(1, Number(url.searchParams.get("n")) || 12));
@@ -711,6 +726,9 @@ function start(options = {}) {
       // index catches up at the same time (Ollama runs only for that, then stops when idle);
       // searches update it too, so it is never more than a day behind.
       setTimeout(() => runMapCheck(false), 3e3);
+      // Session notes in the vault: written on start, then kept up to date every 10 minutes.
+      setTimeout(() => claudeProjects.refresh(), 8e3);
+      setInterval(() => claudeProjects.refresh(), 10 * 60e3);
       let nightlyDay = "";
       setInterval(() => {
         const d = new Date();

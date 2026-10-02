@@ -377,6 +377,7 @@ function render(s) {
   renderChanges(s.changes);
   renderInbox(s.inbox);
   renderUsage(s.skillUsage);
+  renderClaude();
 }
 
 async function load() {
@@ -638,6 +639,59 @@ document.addEventListener("click", async (e) => {
     toast(err.message, true);
   }
 });
+
+// Claude projects (wiki/projects pages) and sessions of both computers. Every row opens its
+// Obsidian page through the shared [data-note] click handler: a project its page, a session
+// the note lib/projects.js wrote for it.
+let claude = null;
+let cpMachine = "all";
+const machineChip = (m) => `<span class="mc${m === "old" ? " old" : ""}">${t(m === "old" ? "cpOld" : "cpThis")}</span>`;
+function renderClaude() {
+  if (!claude) return;
+  const pick = (m) => cpMachine === "all" || m === cpMachine;
+  const projects = claude.projects.filter((p) => p.machines.some(pick));
+  $("#cp-projects").innerHTML = projects.length
+    ? projects
+        .map((p) => {
+          const n = claude.sessions.filter((s) => s.project === p.name && pick(s.machine)).length;
+          const when = p.last ? I18N.when(p.last) : "";
+          return `<li class="cp-row" data-note="${esc(p.file)}" title="${esc(t("cpOpenHint"))}"><span class="sbody"><span class="nm" dir="auto">${esc(p.name)}</span><span class="snip">${
+            n ? t("cpSessionsN", { n }) : "—"
+          }${when ? ` · ${when}` : ""}${p.status ? ` · ${esc(p.status)}` : ""}</span></span>${p.machines.filter(pick).map(machineChip).join(" ")}<span></span></li>`;
+        })
+        .join("")
+    : `<li class="empty">${t("noResults")}</li>`;
+  const sessions = claude.sessions.filter((s) => pick(s.machine));
+  $("#cp-sessions").innerHTML = sessions.length
+    ? sessions
+        .map(
+          (s) =>
+            `<li class="cp-sess" data-note="${esc(s.note)}" title="${esc(t("cpOpenHint"))}"><span class="tm">${I18N.when(s.end)}</span><span class="sbody"><span class="nm file" dir="auto">${esc(
+              s.title || s.id
+            )}</span><span class="snip">${s.project ? `<span class="pj">${esc(s.project)}</span>` : t("cpNoProject")} · <bdi>${esc(s.cwd || "")}</bdi> · ${s.messages}</span></span>${machineChip(s.machine)}</li>`
+        )
+        .join("")
+    : `<li class="empty">${t("noSessions")}</li>`;
+  const loose = sessions.filter((s) => !s.project).length;
+  $("#cp-note").textContent = loose ? t("cpLoose", { n: loose }) : "";
+}
+async function loadClaude() {
+  try {
+    claude = await (await fetch("/api/projects", { cache: "no-store" })).json();
+    renderClaude();
+  } catch (e) {
+    toast(e.message, true);
+  }
+}
+$("#cp-filter").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-m]");
+  if (!b) return;
+  cpMachine = b.dataset.m;
+  for (const x of $("#cp-filter").querySelectorAll("[data-m]")) x.classList.toggle("on", x === b);
+  renderClaude();
+});
+loadClaude();
+setInterval(() => !document.hidden && loadClaude(), 60e3);
 
 // Skill builder: writes SKILL.md in the vault and a config.json entry.
 const BUILDER_TOOLS = ["Read", "Glob", "Grep", "Write", "Edit", "WebSearch", "WebFetch"];
