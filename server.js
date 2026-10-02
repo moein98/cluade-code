@@ -427,6 +427,10 @@ function detached(cmd, args) {
   p.unref();
 }
 
+// obsidian:// links go to the registered protocol handler. explorer.exe is not used for them: it
+// opens the Documents folder instead when it does not take the URI.
+const openUri = (uri) => detached("rundll32.exe", ["url.dll,FileProtocolHandler", uri]);
+
 const obsidianUri = (file) =>
   `obsidian://open?vault=${encodeURIComponent(cfg.vault.name)}` +
   (file ? `&file=${encodeURIComponent(file.replace(/\\/g, "/"))}` : "");
@@ -504,7 +508,7 @@ function openTarget(what, body) {
       if (!fs.existsSync(p)) throw new Error("path not found");
       const relToVault = path.relative(vault, p);
       if (!relToVault.startsWith("..") && !path.isAbsolute(relToVault) && /\.md$/i.test(p)) {
-        detached("explorer.exe", [obsidianUri(relToVault)]);
+        openUri(obsidianUri(relToVault));
       } else if (fs.statSync(p).isDirectory()) {
         detached("explorer.exe", [p]);
       } else {
@@ -521,7 +525,7 @@ function openTarget(what, body) {
       break;
     }
     case "vault":
-      detached("explorer.exe", [obsidianUri()]);
+      openUri(obsidianUri());
       break;
     case "widget":
       // Inside the desktop app, toggle its widget window; otherwise launch the PowerShell widget.
@@ -532,7 +536,7 @@ function openTarget(what, body) {
       const rel = path.posix.join(cfg.vault.dailyFolder || "", `${dayKey(new Date())}.md`);
       const abs = insideVault(rel);
       if (!fs.existsSync(abs)) fs.writeFileSync(abs, "", "utf8");
-      detached("explorer.exe", [obsidianUri(rel)]);
+      openUri(obsidianUri(rel));
       break;
     }
     case "runs":
@@ -545,7 +549,7 @@ function openTarget(what, body) {
     case "note": {
       const rel = String(body.file || "");
       if (!fs.existsSync(insideVault(rel))) throw new Error("note not found");
-      detached("explorer.exe", [obsidianUri(rel)]);
+      openUri(obsidianUri(rel));
       inbox.markRead(rel);
       break;
     }
