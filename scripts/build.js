@@ -5,9 +5,9 @@
 // It reuses the Electron runtime from node_modules/electron/dist, renames electron.exe, puts the
 // app code in resources/app (no node_modules: the app has no runtime dependencies), keeps only
 // the en-US and fa locales, and sets the exe's icon and version info with rcedit. A running copy
-// is closed first (`Agentic OS.exe --quit`) and started again in the tray afterwards.
-// The built app reads config.json and data/ from this project folder (two levels above the exe);
-// copied elsewhere, it uses a config.json next to the exe or %APPDATA%\Agentic OS.
+// is closed first (`Agentic OS.exe --quit`) and started again in the tray afterwards, unless
+// --no-restart is given (scripts/build-setup.js). The sample skills ship in resources/app/skills
+// for the installer. Where the app keeps config.json and data/: lib/home.js.
 const fs = require("fs");
 const path = require("path");
 const zlib = require("zlib");
@@ -18,7 +18,7 @@ const pkg = require(path.join(ROOT, "package.json"));
 const ELECTRON = path.join(ROOT, "node_modules", "electron", "dist");
 const OUT = path.join(ROOT, "dist", "Agentic OS");
 const EXE = path.join(OUT, "Agentic OS.exe");
-const APP_FILES = ["server.js", "config.example.json", "lib", "electron", "public", "mcp"];
+const APP_FILES = ["server.js", "config.example.json", "lib", "electron", "public", "mcp", "skills"];
 const KEEP_LOCALES = new Set(["en-US.pak", "fa.pak"]);
 
 function copy(src, dest, filter = () => true) {
@@ -190,7 +190,7 @@ if (fs.existsSync(rcedit)) {
 }
 
 console.log(`Done: ${EXE}\nSize: ${(dirSize(OUT) / 1e6).toFixed(0)} MB`);
-if (wasRunning) {
+if (wasRunning && !process.argv.includes("--no-restart")) {
   spawn(EXE, ["--hidden"], { detached: true, stdio: "ignore", env: appEnv() }).unref();
   console.log("Started Agentic OS again (tray).");
 }

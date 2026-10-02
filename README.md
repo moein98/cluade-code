@@ -2,25 +2,35 @@
 
 داشبورد command-center محلی برای Claude Code + vault ابسیدین (`moein brain`) — بازسازی Agentic OS از ویدیوی Chase AI.
 
-## نصب (بعد از clone)
+## نصب با Setup (سیستم‌های دیگر)
 
-پیش‌نیازها: Windows، [Node.js](https://nodejs.org) 18 یا بالاتر، [Claude Code](https://claude.com/claude-code) لاگین‌شده، یک vault ابسیدین.
+پیش‌نیازها: Windows 10 یا 11، [Claude Code](https://claude.com/claude-code) نصب و لاگین‌شده، و یک vault ابسیدین. Node لازم نیست.
 
-1. `config.example.json` را به `config.json` کپی کنید و `vault.path`، `vault.name` (نام vault در Obsidian) و `vault.label` را پر کنید.
-2. پوشه‌های داخل `skills\` را به `<vault>\.claude\skills\` کپی کنید. skillها به ساختار vault خود من (`raw/`، `wiki/`، `index.md`، `log.md`) و خروجی فارسی تنظیم شده‌اند؛ برای vault خودتان ویرایش‌شان کنید.
-3. `start.cmd` را اجرا کنید.
+1. `Agentic OS Setup <نسخه>.exe` را اجرا کنید. این فایل را `npm run setup` در پوشهٔ `Setup\` می‌سازد. چون امضای دیجیتال ندارد، ویندوز ممکن است هشدار SmartScreen بدهد؛ روی **More info** و بعد **Run anyway** بزنید.
+2. پوشهٔ vault را انتخاب کنید. محل نصب را هم می‌شود عوض کرد؛ پیش‌فرض `%LOCALAPPDATA%\Programs\Agentic OS` است. برای نصب به دسترسی admin نیازی نیست.
+3. گزینه‌ها: میان‌بر دسکتاپ، اجرا هنگام ورود به ویندوز، کپی مهارت‌های نمونه در `<vault>\.claude\skills`، و ثبت ابزار `vault-search` در Claude Code. ابزار `vault-search` با خود `Agentic OS.exe` اجرا می‌شود و Node نمی‌خواهد.
 
-`config.json` و `data\` (تاریخچهٔ اجراها) در git نیستند.
+- **مسیرها:** خود برنامه در پوشهٔ نصب است. تنظیمات (`config.json`) و داده‌ها (`data\`) در `%APPDATA%\Agentic OS` هستند و با به‌روزرسانی یا حذف برنامه پاک نمی‌شوند.
+- **به‌روزرسانی:** Setup نسخهٔ تازه را روی همان پوشه اجرا کنید. تنظیمات قبلی حفظ می‌شوند.
+- **حذف:** از Settings ← Apps، یا با `Uninstall Agentic OS.exe` در پوشهٔ نصب. موقع حذف می‌پرسد که تنظیمات و داده‌ها هم پاک شوند یا نه.
+- **نصب بی‌صدا:** `"Agentic OS Setup 1.6.0.exe" /silent /vault:"D:\Vault" /dir:"D:\Apps\Agentic OS"`. پرچم‌های اختیاری: `/nodesktop`، `/nologin`، `/noskills`، `/nomcp`، `/nolaunch`. برای حذف بی‌صدا: `/uninstall /silent`.
+- skillهای نمونه به ساختار vault خود من (`raw/`، `wiki/`، `index.md`، `log.md`) و خروجی فارسی تنظیم شده‌اند؛ برای vault خودتان ویرایش‌شان کنید.
 
-## اجرا
+## اجرا از سورس (توسعه)
+
+پیش‌نیاز: [Node.js](https://nodejs.org) 18 یا بالاتر.
 
 ```
-start.cmd            ← سرور را روشن می‌کند و مرورگر را باز می‌کند
+npm install                             ← فقط برای اپ دسکتاپ و ساختن exe
+start.cmd                               ← فقط سرور، و باز شدن داشبورد در مرورگر (http://127.0.0.1:4747)
+app.vbs                                 ← اپ دسکتاپ از سورس
+npm run dist                            ← dist\Agentic OS\Agentic OS.exe
+npm run setup                           ← Setup\Agentic OS Setup <نسخه>.exe (exe را هم می‌سازد)
 ```
 
-آدرس: http://127.0.0.1:4747 — فقط Node لازم است، بدون `npm install`.
+محل تنظیمات و داده‌ها در `lib/home.js` تعیین می‌شود. اگر در پوشهٔ پروژه `config.json` باشد، همان استفاده می‌شود؛ وگرنه `%APPDATA%\Agentic OS` (همان تنظیماتی که نسخهٔ نصب‌شده استفاده می‌کند). با متغیر `AGENTIC_OS_HOME` هم می‌شود مسیر دیگری داد. `config.json` و `data\` در git نیستند.
 
-برای اینکه routineهای زمان‌بندی‌شده خودکار اجرا شوند، سرور باید روشن باشد. برای اجرای خودکار هنگام ورود به ویندوز: `Win+R` → `shell:startup` → یک shortcut از `start-hidden.vbs` آنجا بگذارید (بدون پنجره اجرا می‌شود، لاگ در `data\server.log`).
+برای اینکه routineهای زمان‌بندی‌شده خودکار اجرا شوند، برنامه باید روشن باشد. در نسخهٔ نصب‌شده، «اجرا هنگام ورود به ویندوز» همین کار را می‌کند.
 
 ## خودکارسازی و محافظت
 
@@ -73,12 +83,14 @@ start.cmd            ← سرور را روشن می‌کند و مرورگر ر
 
 ```
 npm install
-node node_modules\electron\install.js   ← npm 11 اسکریپت postinstall را بلاک می‌کند؛ این دستور باینری Electron را می‌گیرد
+node node_modules\electron\install.js   ← npm 11 اسکریپت postinstall را بلاک می‌کند؛ این دستور باینری Electron را می‌گیرد (از کش محلی اگر باشد)
 app.vbs                                 ← اجرای اپ از سورس (یا npm run app)
 npm run dist                            ← ساخت dist\Agentic OS\Agentic OS.exe
+npm run setup                           ← ساخت Setup\Agentic OS Setup <نسخه>.exe
 ```
 
-- **فایل exe:** دستور `npm run dist` هیچ چیزی دانلود نمی‌کند. از همان Electron داخل `node_modules` استفاده می‌کند و فقط زبان‌های en و fa را نگه می‌دارد. آیکن و مشخصات exe را هم با `rcedit` تنظیم می‌کند. exe تنظیمات و `data\` را از پوشهٔ پروژه می‌خواند (دو پوشه بالاتر از خودش). اگر exe را جای دیگری کپی کنید، از `config.json` کنار خودش یا از `%APPDATA%\Agentic OS` استفاده می‌کند؛ با متغیر `AGENTIC_OS_HOME` هم می‌شود مسیر را مشخص کرد. وقتی exe اجرا شود، گزینهٔ Start at login خودبه‌خود به exe منتقل می‌شود.
+- **فایل exe:** دستور `npm run dist` هیچ چیزی دانلود نمی‌کند. از همان Electron داخل `node_modules` استفاده می‌کند و فقط زبان‌های en و fa را نگه می‌دارد. آیکن و مشخصات exe را هم با `rcedit` تنظیم می‌کند. اگر برنامه باز باشد، اول با `--quit` بسته می‌شود و بعد از ساخت دوباره باز می‌شود.
+- **فایل Setup:** دستور `npm run setup` اول exe را می‌سازد. بعد `scripts/setup/Setup.cs` را با کامپایلر C# که همراه ویندوز است (`.NET Framework 4`) دو بار کامپایل می‌کند: یک بار بدون بار، به‌عنوان حذف‌کننده (`Uninstall Agentic OS.exe`) که داخل پوشهٔ برنامه قرار می‌گیرد، و یک بار با فایل zip برنامه که درونش جاسازی شده، به‌عنوان نصب‌کننده. هیچ چیزی دانلود نمی‌شود و خروجی حدود ۱۲۷ مگابایت است.
 - سرور داشبورد داخل خود اپ اجرا می‌شود. اگر سرور مستقل (`start.cmd`) از قبل روشن باشد، اپ فقط به آن وصل می‌شود.
 - **پنجره‌ها:** داشبورد کامل، و ویجت شناور همیشه‌رو که قابل کشیدن است و جایش ذخیره می‌شود.
 - **بستن پنجره:** پنجره کاملاً بسته می‌شود تا حافظه‌اش آزاد شود. اپ در tray می‌ماند و scheduler روشن است. برای خروج کامل: tray ← Quit.

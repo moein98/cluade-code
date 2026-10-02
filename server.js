@@ -2,7 +2,6 @@
 // Zero dependencies: node server.js [--open]. The Electron app (electron/main.js) calls start() in-process.
 const http = require("http");
 const fs = require("fs");
-const os = require("os");
 const path = require("path");
 const { spawn } = require("child_process");
 const usage = require("./lib/usage");
@@ -22,27 +21,12 @@ const { createSemantic } = require("./lib/semantic");
 const { buildBrain } = require("./lib/brain");
 const limits = require("./lib/limits");
 
-// APP holds the code and pages; HOME holds config.json and data/. They are the same folder in
-// development. The packaged exe (resources/app) finds HOME through AGENTIC_OS_HOME, else a
-// config.json beside or up to two folders above the exe (dist/Agentic OS/ inside the project),
-// else %APPDATA%\Agentic OS, created from config.example.json on first start.
+const { findHome, loadConfig } = require("./lib/home");
+
+// APP holds the code and pages; HOME holds config.json and data/ (lib/home.js).
 const APP = __dirname;
-function findHome() {
-  if (process.env.AGENTIC_OS_HOME) return path.resolve(process.env.AGENTIC_OS_HOME);
-  if (!/[\\/]resources[\\/]app$/i.test(APP)) return APP;
-  let dir = path.dirname(process.execPath);
-  for (let i = 0; i < 3; i++, dir = path.dirname(dir)) {
-    if (fs.existsSync(path.join(dir, "config.json"))) return dir;
-  }
-  const home = path.join(process.env.APPDATA || os.homedir(), "Agentic OS");
-  fs.mkdirSync(home, { recursive: true });
-  const conf = path.join(home, "config.json");
-  if (!fs.existsSync(conf)) fs.copyFileSync(path.join(APP, "config.example.json"), conf);
-  return home;
-}
 const HOME = findHome();
-const cfgFile = [path.join(HOME, "config.json"), path.join(APP, "config.example.json")].find((f) => fs.existsSync(f));
-const cfg = JSON.parse(fs.readFileSync(cfgFile, "utf8"));
+const cfg = loadConfig(HOME);
 const DATA = path.join(HOME, "data");
 fs.mkdirSync(DATA, { recursive: true });
 const vault = cfg.vault.path;
@@ -57,7 +41,8 @@ let hooks = {};
 const DAY = 24 * 3600e3;
 const learnings = createLearnings(cfg);
 const quality = createQuality(cfg, DATA);
-const vaultSearch = createSearch(vault, { skipDirs: [cfg.vault.runsFolder] });
+// vault.searchSkip: folders kept out of search, e.g. a raw archive already merged into the wiki.
+const vaultSearch = createSearch(vault, { skipDirs: [cfg.vault.runsFolder, ...(cfg.vault.searchSkip || [])] });
 const sessions = createSessions(usage.costOf, [DATA]); // quality checks run in data/
 const ollama = createOllama(cfg, DATA);
 const semantic = createSemantic(cfg, DATA, ollama);

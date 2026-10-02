@@ -11,3 +11,6 @@ node_modules/
 
 # Built app (npm run dist)
 dist/
+
+# Installer output (npm run setup)
+/Setup/

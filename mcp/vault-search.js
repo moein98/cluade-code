@@ -9,11 +9,13 @@ const path = require("path");
 const readline = require("readline");
 const { createSearch } = require("../lib/search");
 
-const ROOT = process.env.AGENTIC_OS_HOME || path.join(__dirname, "..");
-const cfgFile = [path.join(ROOT, "config.json"), path.join(__dirname, "..", "config.example.json")].find((f) => fs.existsSync(f));
-const cfg = JSON.parse(fs.readFileSync(cfgFile, "utf8"));
+const { findHome, loadConfig } = require("../lib/home");
+
+// Same config as the app (lib/home.js); in the installed app this runs as
+// "Agentic OS.exe" with ELECTRON_RUN_AS_NODE=1, so no separate Node is needed.
+const cfg = loadConfig(findHome());
 const vault = process.env.VAULT_PATH || cfg.vault.path;
-const search = createSearch(vault, { skipDirs: [cfg.vault.runsFolder] });
+const search = createSearch(vault, { skipDirs: [cfg.vault.runsFolder, ...(cfg.vault.searchSkip || [])] });
 
 // Ask the dashboard first (semantic + keywords); null when it isn't running.
 async function viaDashboard(q, limit) {

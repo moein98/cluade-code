@@ -321,16 +321,36 @@ function loginOptions() {
 const loginEnabled = () => app.getLoginItemSettings(loginOptions()).openAtLogin;
 const setLogin = (on) => app.setLoginItemSettings({ ...loginOptions(), openAtLogin: on });
 
-// The exe takes over an "Agentic OS" login entry that still points at the development launcher.
+// The exe takes over an "Agentic OS" login entry that points at the development launcher
+// (electron.exe in node_modules) or at an exe that no longer exists; a working one is left alone.
 function migrateLoginItem() {
   if (!app.isPackaged || loginEnabled()) return;
   const key = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run";
   execFile("reg.exe", ["query", key, "/v", "Agentic OS"], { windowsHide: true }, (err, out) => {
-    if (!err && /Agentic OS\s+REG_SZ/i.test(String(out))) {
+    const m = /Agentic OS\s+REG_SZ\s+"([^"]+)"/i.exec(String(out || ""));
+    if (err || !m) return;
+    if (/[\\/]node_modules[\\/]electron[\\/]/i.test(m[1]) || !fs.existsSync(m[1])) {
       setLogin(true);
-      console.log("Start at login now launches the exe");
+      console.log("Start at login now launches this exe");
     }
   });
+}
+
+// Installed copy (the installer put its uninstaller next to the exe): keep the Start Menu shortcut
+// carrying the app id — Windows shows an unpackaged app's notifications only through it.
+function ensureStartMenuShortcut() {
+  if (!app.isPackaged || !fs.existsSync(path.join(path.dirname(process.execPath), "Uninstall Agentic OS.exe"))) return;
+  const lnk = path.join(app.getPath("appData"), "Microsoft", "Windows", "Start Menu", "Programs", "Agentic OS.lnk");
+  try {
+    shell.writeShortcutLink(lnk, fs.existsSync(lnk) ? "update" : "create", {
+      target: process.execPath,
+      cwd: path.dirname(process.execPath),
+      appUserModelId: "Agentic OS",
+      description: "Agentic OS — Claude Code + Obsidian command center",
+      icon: process.execPath,
+      iconIndex: 0,
+    });
+  } catch {}
 }
 
 // `--set-login=on|off` toggles start-at-login from the command line (also via a second instance).
@@ -413,6 +433,7 @@ if (!app.requestSingleInstanceLock()) {
     tray.on("right-click", () => showTrayMenu());
     if (prefs.widgetVisible) createWidget();
     migrateLoginItem();
+    ensureStartMenuShortcut();
     const loginFlag = applyLoginFlag(process.argv);
     if (!process.argv.includes("--hidden") && !loginFlag) showMain();
     poll();

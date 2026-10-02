@@ -13,7 +13,8 @@
     "label": "MY VAULT",
     "dailyFolder": "",
     "runsFolder": "dashboard-runs",
-    "draftsFolder": "output/drafts"
+    "draftsFolder": "output/drafts",
+    "searchSkip": []
   },
   "limits": {
     "fiveHourTokens": 2400000,
