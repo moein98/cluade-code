@@ -10,6 +10,9 @@ const fs = require("fs");
 const { execFile } = require("child_process");
 const server = require("../server");
 
+// Chromium's own cache and storage go beside config.json and data/ (HOME), not to %APPDATA%.
+app.setPath("userData", path.join(server.home, "electron"));
+
 const PREFS_FILE = path.join(server.home, "data", "desktop.json");
 const WIDGET_WIDTH = 340;
 

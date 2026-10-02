@@ -31,6 +31,13 @@ const HOME = findHome();
 const cfg = loadConfig(HOME);
 const DATA = path.join(HOME, "data");
 fs.mkdirSync(DATA, { recursive: true });
+// Temp files (card screenshots, Telegram uploads, child processes) and the card renderer's
+// browser profile stay beside config.json and data/ instead of the system drive: os.tmpdir()
+// and child processes read TEMP/TMP.
+const CACHE = path.join(HOME, "cache");
+fs.mkdirSync(path.join(CACHE, "tmp"), { recursive: true });
+process.env.TEMP = process.env.TMP = path.join(CACHE, "tmp");
+process.env.AGENTIC_OS_CACHE = CACHE;
 const vault = cfg.vault.path;
 // Created only once this process owns the port, so a second instance never runs a second scheduler.
 let runner;
