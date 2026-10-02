@@ -279,8 +279,15 @@
         "to": "output/briefs",
         "rename": "{name}-morning-brief.md",
         "skill": "morning-brief"
+      },
+      {
+        "from": "reports/weekly",
+        "to": "output/weekly",
+        "rename": "{name}.md",
+        "skill": "weekly-review"
       }
     ],
+    "vaultBranch": "",
     "gitName": "",
     "gitEmail": ""
   },

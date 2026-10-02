@@ -147,17 +147,18 @@ widget.vbs           ← ویجت شناور (WPF، بدون نصب چیز اض�
 
 Claude Code Routines در سرورهای Anthropic اجرا می‌شوند، حتی وقتی سیستم خاموش است. خروجی‌شان را در همین ریپو commit می‌کنند.
 
-این دو روتین بدون روشن بودن PC کار می‌کنند. خروجی‌شان در یک ریپوی **خصوصی** جدا (`agentic-reports`) ثبت می‌شود و یک GitHub Action هر گزارش جدید را به تلگرام می‌فرستد. این Action هیچ AI ندارد و توکن ربات فقط در GitHub secrets است، پس Claude هیچ‌وقت آن را نمی‌بیند. به همین دلیل یک ایمیل مخرب هم نمی‌تواند Claude را وادار کند داده‌ها را به چت دیگری بفرستد.
+این روتین‌ها بدون روشن بودن PC کار می‌کنند. خروجی‌شان در یک ریپوی **خصوصی** جدا (`agentic-reports`) ثبت می‌شود و یک GitHub Action هر گزارش جدید را به تلگرام می‌فرستد. این Action هیچ AI ندارد و توکن ربات فقط در GitHub secrets است، پس Claude هیچ‌وقت آن را نمی‌بیند. به همین دلیل یک ایمیل مخرب هم نمی‌تواند Claude را وادار کند داده‌ها را به چت دیگری بفرستد.
 
 | روتین | زمان (تهران) | ورودی | خروجی |
 |---|---|---|---|
 | Market Scan | ۰۷:۰۷ | وب | `reports/market/DATE.md` |
 | Morning Brief | ۰۸:۰۷ | Gmail و Calendar (فقط خواندنی) + گزارش بازار | `reports/brief/DATE.md` |
+| Weekly Review | جمعه ۲۰:۳۰ | snapshot vault (شاخهٔ `vault`) + گزارش‌های هفته | `reports/weekly/YYYY-Www.md` |
 
 - مدیریت روتین‌ها: https://claude.ai/code/routines
-- **همگام‌سازی:** وقتی PC روشن است، داشبورد هر ۱۵ دقیقه `cloudSync.repo` را fetch می‌کند (یک clone جداگانه در `data/cloud-reports`) و گزارش‌ها را در vault کپی می‌کند: `raw/market/` و `output/briefs/`. این کپی‌ها در صندوق خروجی‌ها هم نمایش داده می‌شوند. git هیچ‌وقت پنجرهٔ ورود باز نمی‌کند.
+- **همگام‌سازی:** وقتی PC روشن است، داشبورد هر ۱۵ دقیقه `cloudSync.repo` را fetch می‌کند (یک clone جداگانه در `data/cloud-reports`) و گزارش‌ها را در vault کپی می‌کند: `raw/market/`، `output/briefs/` و `output/weekly/`. این کپی‌ها در صندوق خروجی‌ها هم نمایش داده می‌شوند. git هیچ‌وقت پنجرهٔ ورود باز نمی‌کند.
 - ریپوی خصوصی دو secret دارد: `TELEGRAM_BOT_TOKEN` و `TELEGRAM_CHAT_ID`.
-- مرور هفتگی هنوز محلی است، چون به یادداشت‌های vault نیاز دارد.
+- **snapshot vault** (`cloudSync.vaultBranch`): همان تیک ۱۵ دقیقه‌ای، اگر vault تغییر کرده باشد، یک snapshot از کل vault (با تغییرات commit نشده و با رعایت `.gitignore`) را به شاخهٔ `vault` ریپوی خصوصی push می‌کند. برای این کار از یک index جداگانه در `cache/vault-index` استفاده می‌شود و HEAD و index خود vault دست نمی‌خورند. روتین مرور هفتگی vault را از همین شاخه می‌خواند. وقتی این روتین فعال است، `schedule` مهارت weekly-review را در `config.json` حذف کن تا دو بار اجرا نشود.
 
 ## انتخاب مدل (model routing)
 
